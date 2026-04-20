@@ -1,0 +1,1 @@
+ALTER TABLE tabl_restaurants ADD COLUMN IF NOT EXISTS cuisine_type VARCHAR(50) NOT NULL DEFAULT '';

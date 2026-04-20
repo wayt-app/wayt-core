@@ -1,0 +1,1 @@
+ALTER TABLE tabl_bookings ADD COLUMN IF NOT EXISTS tables_count INT NOT NULL DEFAULT 1;

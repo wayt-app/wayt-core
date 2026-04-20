@@ -1,0 +1,1 @@
+ALTER TABLE tabl_restaurants ADD COLUMN IF NOT EXISTS logo_url TEXT NOT NULL DEFAULT '';
