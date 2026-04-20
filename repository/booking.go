@@ -3,7 +3,7 @@ package repository
 import (
 	"time"
 
-	"github.com/wayt/wayt-core/internal/model"
+	"github.com/wayt/wayt-core/model"
 	"gorm.io/gorm"
 )
 

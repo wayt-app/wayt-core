@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/wayt/wayt-core/internal/repository"
+	"github.com/wayt/wayt-core/repository"
 )
 
 // SlotTable represents availability of one table type within a time slot.

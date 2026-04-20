@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/wayt/wayt-core/internal/model"
-	"github.com/wayt/wayt-core/internal/repository"
+	"github.com/wayt/wayt-core/model"
+	"github.com/wayt/wayt-core/repository"
 )
 
 type PlanOrderService interface {

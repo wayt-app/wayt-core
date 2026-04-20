@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/wayt/wayt-core/internal/model"
-	"github.com/wayt/wayt-core/internal/repository"
+	"github.com/wayt/wayt-core/model"
+	"github.com/wayt/wayt-core/repository"
 	"github.com/wayt/wayt-core/pkg/email"
 	"golang.org/x/crypto/bcrypt"
 )
