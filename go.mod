@@ -1,4 +1,4 @@
-module github.com/wayt/wayt-core
+module github.com/wayt-app/wayt-core
 
 go 1.26.1
 

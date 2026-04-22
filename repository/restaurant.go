@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"github.com/wayt/wayt-core/model"
+	"github.com/wayt-app/wayt-core/model"
 	"gorm.io/gorm"
 )
 

@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wayt/wayt-core/model"
-	"github.com/wayt/wayt-core/repository"
-	"github.com/wayt/wayt-core/pkg/email"
-	"github.com/wayt/wayt-core/pkg/whatsapp"
+	"github.com/wayt-app/wayt-core/model"
+	"github.com/wayt-app/wayt-core/repository"
+	"github.com/wayt-app/wayt-core/pkg/email"
+	"github.com/wayt-app/wayt-core/pkg/whatsapp"
 )
 
 type TableTypeStatus struct {

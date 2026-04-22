@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/wayt/wayt-core/pkg/response"
+	"github.com/wayt-app/wayt-core/pkg/response"
 )
 
 // TokenVersionFinder looks up the current token version for a user.

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/wayt/wayt-core/model"
-	"github.com/wayt/wayt-core/repository"
-	"github.com/wayt/wayt-core/pkg/storage"
+	"github.com/wayt-app/wayt-core/model"
+	"github.com/wayt-app/wayt-core/repository"
+	"github.com/wayt-app/wayt-core/pkg/storage"
 )
 
 type MediaService interface {

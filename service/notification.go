@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/wayt/wayt-core/model"
-	"github.com/wayt/wayt-core/repository"
-	"github.com/wayt/wayt-core/pkg/sse"
+	"github.com/wayt-app/wayt-core/model"
+	"github.com/wayt-app/wayt-core/repository"
+	"github.com/wayt-app/wayt-core/pkg/sse"
 )
 
 type NotificationService interface {
