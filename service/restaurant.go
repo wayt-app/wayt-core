@@ -28,6 +28,7 @@ type RestaurantService interface {
 	FindByPromoToken(token string) (*model.Restaurant, error)
 	Update(id uint, name, description, address, phone string, isActive bool, cuisineType string) (*model.Restaurant, error)
 	UpdateForOwner(id, ownerID uint, name, description, address, phone string, isActive bool, cuisineType string) (*model.Restaurant, error)
+	RegeneratePromoToken(ownerID uint) (*model.Restaurant, error)
 	Delete(id uint) error
 }
 
@@ -143,6 +144,18 @@ func (s *restaurantService) FindByPromoToken(token string) (*model.Restaurant, e
 	r, err := s.repo.FindByPromoToken(token)
 	if err != nil {
 		return nil, errors.New("restoran tidak ditemukan")
+	}
+	return r, nil
+}
+
+func (s *restaurantService) RegeneratePromoToken(ownerID uint) (*model.Restaurant, error) {
+	r, err := s.repo.FindByOwnerID(ownerID)
+	if err != nil {
+		return nil, errors.New("restoran tidak ditemukan")
+	}
+	r.PromoToken = generatePromoToken()
+	if err := s.repo.Update(r); err != nil {
+		return nil, err
 	}
 	return r, nil
 }
