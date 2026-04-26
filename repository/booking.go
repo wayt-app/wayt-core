@@ -303,7 +303,7 @@ func (r *bookingRepository) FindByCustomerPaged(customerID uint, sortBy, sortDir
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	err := r.db.Preload("Branch").Preload("TableType").
+	err := r.db.Preload("Branch").Preload("Branch.Restaurant").Preload("TableType").
 		Where("customer_id = ?", customerID).
 		Order(bookingOrderClause(sortBy, sortDir, "")).
 		Offset(offset).Limit(limit).Find(&list).Error
