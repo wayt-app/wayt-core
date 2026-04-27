@@ -23,6 +23,7 @@ type RestaurantService interface {
 	CreateForOwner(ownerID uint, name, description, address, phone, cuisineType string) (*model.Restaurant, error)
 	List() ([]model.Restaurant, error)
 	ListActive() ([]model.Restaurant, error)
+	ListActiveWithCoords() ([]model.RestaurantWithCoords, error)
 	FindByID(id uint) (*model.Restaurant, error)
 	FindByOwnerID(ownerID uint) (*model.Restaurant, error)
 	FindByPromoToken(token string) (*model.Restaurant, error)
@@ -111,6 +112,10 @@ func (s *restaurantService) List() ([]model.Restaurant, error) {
 
 func (s *restaurantService) ListActive() ([]model.Restaurant, error) {
 	return s.repo.FindAllActive()
+}
+
+func (s *restaurantService) ListActiveWithCoords() ([]model.RestaurantWithCoords, error) {
+	return s.repo.FindAllActiveWithBranchCoords()
 }
 
 func (s *restaurantService) FindByID(id uint) (*model.Restaurant, error) {

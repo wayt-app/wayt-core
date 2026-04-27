@@ -9,6 +9,7 @@ type RestaurantRepository interface {
 	Create(r *model.Restaurant) error
 	FindAll() ([]model.Restaurant, error)
 	FindAllActive() ([]model.Restaurant, error)
+	FindAllActiveWithBranchCoords() ([]model.RestaurantWithCoords, error)
 	FindByID(id uint) (*model.Restaurant, error)
 	FindByOwnerID(ownerID uint) (*model.Restaurant, error)
 	FindByBranchID(restaurantID uint) (*model.Restaurant, error)
@@ -37,6 +38,29 @@ func (r *restaurantRepository) FindAll() ([]model.Restaurant, error) {
 func (r *restaurantRepository) FindAllActive() ([]model.Restaurant, error) {
 	var list []model.Restaurant
 	err := r.db.Where("deleted_at IS NULL AND is_active = true").Order("name ASC").Find(&list).Error
+	return list, err
+}
+
+func (r *restaurantRepository) FindAllActiveWithBranchCoords() ([]model.RestaurantWithCoords, error) {
+	var list []model.RestaurantWithCoords
+	err := r.db.Raw(`
+		SELECT r.*,
+			COALESCE((
+				SELECT b.latitude FROM tabl_branches b
+				WHERE b.restaurant_id = r.id AND b.is_active = true
+				  AND b.deleted_at IS NULL AND b.latitude <> 0
+				LIMIT 1
+			), 0) AS nearest_lat,
+			COALESCE((
+				SELECT b.longitude FROM tabl_branches b
+				WHERE b.restaurant_id = r.id AND b.is_active = true
+				  AND b.deleted_at IS NULL AND b.latitude <> 0
+				LIMIT 1
+			), 0) AS nearest_lng
+		FROM tabl_restaurants r
+		WHERE r.deleted_at IS NULL AND r.is_active = true
+		ORDER BY r.name ASC
+	`).Scan(&list).Error
 	return list, err
 }
 

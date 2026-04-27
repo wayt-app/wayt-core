@@ -19,3 +19,11 @@ type Restaurant struct {
 }
 
 func (Restaurant) TableName() string { return "tabl_restaurants" }
+
+// RestaurantWithCoords embeds Restaurant and adds the nearest branch coordinates.
+// NearestLat/NearestLng are 0 when no active branch with coordinates exists.
+type RestaurantWithCoords struct {
+	Restaurant
+	NearestLat float64 `json:"nearest_lat,omitempty"`
+	NearestLng float64 `json:"nearest_lng,omitempty"`
+}
