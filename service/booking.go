@@ -112,6 +112,7 @@ type bookingService struct {
 	subRepo        repository.SubscriptionRepository
 	restaurantRepo repository.RestaurantRepository
 	staffRepo      repository.StaffRepository
+	ownerRepo      repository.BusinessOwnerRepository
 	waSender       whatsapp.Sender
 	emailSender    email.Sender
 	notifSvc       NotificationService
@@ -126,6 +127,7 @@ func NewBookingService(
 	subRepo repository.SubscriptionRepository,
 	restaurantRepo repository.RestaurantRepository,
 	staffRepo repository.StaffRepository,
+	ownerRepo repository.BusinessOwnerRepository,
 	waSender whatsapp.Sender,
 	emailSender email.Sender,
 	notifSvc NotificationService,
@@ -139,6 +141,7 @@ func NewBookingService(
 		subRepo:        subRepo,
 		restaurantRepo: restaurantRepo,
 		staffRepo:      staffRepo,
+		ownerRepo:      ownerRepo,
 		waSender:       waSender,
 		emailSender:    emailSender,
 		notifSvc:       notifSvc,
@@ -301,6 +304,7 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 	}
 	go s.sendBookingNotif(b, string(status))
 	go s.sendBookingEmail(b, string(status))
+	go s.sendOwnerBookingEmail(b, string(status))
 	go s.sendInAppNotif(b, string(status))
 	// Increment reservation count + check warning threshold (best-effort)
 	if s.reservIncr != nil {
@@ -828,6 +832,75 @@ func (s *bookingService) sendBookingEmail(b *model.Booking, event string) {
 
 	if err := s.emailSender.Send(customer.Email, subject, body); err != nil {
 		log.Printf("[EMAIL ERROR] booking #%d ke %s: %v", b.ID, customer.Email, err)
+	}
+}
+
+// sendOwnerBookingEmail notifies the restaurant owner when a customer creates a new reservation.
+// Only fires for confirmed, pending, and waiting_list events. Errors are ignored — best-effort.
+func (s *bookingService) sendOwnerBookingEmail(b *model.Booking, event string) {
+	if event != string(model.BookingStatusConfirmed) &&
+		event != string(model.BookingStatusPending) &&
+		event != string(model.BookingStatusWaitingList) {
+		return
+	}
+	if s.ownerRepo == nil {
+		return
+	}
+
+	branch, err := s.branchRepo.FindByID(b.BranchID)
+	if err != nil {
+		return
+	}
+	restaurant, err := s.restaurantRepo.FindByID(branch.RestaurantID)
+	if err != nil || restaurant.BusinessOwnerID == nil {
+		return
+	}
+	owner, err := s.ownerRepo.FindByID(*restaurant.BusinessOwnerID)
+	if err != nil || owner.Email == "" {
+		return
+	}
+	customer, err := s.customerRepo.FindByID(b.CustomerID)
+	if err != nil {
+		return
+	}
+
+	dateStr := b.BookingDate.Format("02 Jan 2006")
+
+	var statusLabel string
+	switch event {
+	case string(model.BookingStatusConfirmed):
+		statusLabel = `<span style="color:#16a34a;font-weight:bold">Terkonfirmasi Otomatis</span>`
+	case string(model.BookingStatusPending):
+		statusLabel = `<span style="color:#d97706;font-weight:bold">Menunggu Konfirmasi Anda</span>`
+	case string(model.BookingStatusWaitingList):
+		statusLabel = `<span style="color:#6b7280;font-weight:bold">Waiting List</span>`
+	}
+
+	notesRow := ""
+	if b.Notes != "" {
+		notesRow = fmt.Sprintf(`<tr><td style="padding:4px 12px 4px 0;color:#6b7280">Catatan</td><td>%s</td></tr>`, b.Notes)
+	}
+
+	subject := fmt.Sprintf("Reservasi Baru #%d — %s", b.ID, branch.Name)
+	body := fmt.Sprintf(`
+<p>Halo <strong>%s</strong>,</p>
+<p>Ada reservasi baru masuk di cabang <strong>%s</strong>. Status: %s</p>
+<table style="border-collapse:collapse;margin:16px 0">
+  <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Pelanggan</td><td><strong>%s</strong></td></tr>
+  <tr><td style="padding:4px 12px 4px 0;color:#6b7280">No. HP</td><td>%s</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Tanggal</td><td>%s</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Waktu</td><td>%s – %s</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Tamu</td><td>%d orang</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;color:#6b7280">ID Booking</td><td>#%d</td></tr>
+  %s
+</table>`,
+		owner.Name, branch.Name, statusLabel,
+		customer.Name, customer.Phone,
+		dateStr, b.StartTime, b.EndTime, b.GuestCount, b.ID,
+		notesRow)
+
+	if err := s.emailSender.Send(owner.Email, subject, body); err != nil {
+		log.Printf("[EMAIL ERROR] notif owner booking #%d ke %s: %v", b.ID, owner.Email, err)
 	}
 }
 
