@@ -14,7 +14,8 @@ type Customer struct {
 	ResetToken          *string    `gorm:"size:64;index"                 json:"-"`
 	ResetTokenExpiresAt *time.Time `                                     json:"-"`
 	GoogleID            *string    `gorm:"size:255;uniqueIndex"          json:"google_id,omitempty"`
-	AvatarURL           *string    `gorm:"type:text"                    json:"avatar_url,omitempty"`
+	AvatarURL           *string    `gorm:"type:text"                     json:"avatar_url,omitempty"`
+	Address             *string    `gorm:"type:text"                     json:"address,omitempty"`
 	CreatedAt           time.Time  `                                     json:"created_at"`
 	UpdatedAt           time.Time  `                                     json:"updated_at"`
 }

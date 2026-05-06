@@ -29,7 +29,8 @@ type CustomerService interface {
 	ResetPasswordWithToken(token, newPassword string) error
 	VerifyEmail(token string) error
 	Logout(id uint) error
-	UpdateProfile(id uint, name, phone string) error
+	UpdateProfile(id uint, name, phone, address string) error
+	UpdateAvatarURL(id uint, url string) error
 	GetGoogleOAuthURL(state string) string
 	ExchangeGoogleCode(code string) (googleID, email, name, avatarURL string, err error)
 	LoginOrRegisterWithGoogle(googleID, email, name, avatarURL string) (string, error)
@@ -219,7 +220,7 @@ func (s *customerService) Logout(id uint) error {
 	return s.repo.IncrementTokenVersion(id)
 }
 
-func (s *customerService) UpdateProfile(id uint, name, phone string) error {
+func (s *customerService) UpdateProfile(id uint, name, phone, address string) error {
 	if name == "" {
 		return errors.New("nama tidak boleh kosong")
 	}
@@ -229,7 +230,14 @@ func (s *customerService) UpdateProfile(id uint, name, phone string) error {
 	if len(phone) > 20 {
 		return errors.New("nomor telepon maksimal 20 karakter")
 	}
-	return s.repo.UpdateProfile(id, name, phone)
+	if len(address) > 500 {
+		return errors.New("alamat maksimal 500 karakter")
+	}
+	return s.repo.UpdateProfile(id, name, phone, address)
+}
+
+func (s *customerService) UpdateAvatarURL(id uint, url string) error {
+	return s.repo.UpdateAvatarURL(id, url)
 }
 
 func (s *customerService) GetGoogleOAuthURL(state string) string {

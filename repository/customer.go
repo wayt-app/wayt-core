@@ -21,7 +21,8 @@ type CustomerRepository interface {
 	MarkVerified(id uint) error
 	FindTokenVersion(id uint) (int, error)
 	IncrementTokenVersion(id uint) error
-	UpdateProfile(id uint, name, phone string) error
+	UpdateProfile(id uint, name, phone, address string) error
+	UpdateAvatarURL(id uint, url string) error
 	FindByGoogleID(googleID string) (*model.Customer, error)
 	SetGoogleInfo(id uint, googleID, avatarURL string) error
 }
@@ -87,9 +88,18 @@ func (r *customerRepository) MarkVerified(id uint) error {
 	).Error
 }
 
-func (r *customerRepository) UpdateProfile(id uint, name, phone string) error {
-	return r.db.Model(&model.Customer{}).Where("id = ?", id).
-		Updates(map[string]interface{}{"name": name, "phone": phone}).Error
+func (r *customerRepository) UpdateProfile(id uint, name, phone, address string) error {
+	fields := map[string]interface{}{"name": name, "phone": phone}
+	if address != "" {
+		fields["address"] = address
+	} else {
+		fields["address"] = nil
+	}
+	return r.db.Model(&model.Customer{}).Where("id = ?", id).Updates(fields).Error
+}
+
+func (r *customerRepository) UpdateAvatarURL(id uint, url string) error {
+	return r.db.Model(&model.Customer{}).Where("id = ?", id).Update("avatar_url", url).Error
 }
 
 func (r *customerRepository) FindTokenVersion(id uint) (int, error) {
