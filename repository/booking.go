@@ -85,7 +85,7 @@ func (r *bookingRepository) FindActiveByBranchDate(branchID uint, date time.Time
 
 func (r *bookingRepository) FindByBranch(branchID uint, date *time.Time, status *model.BookingStatus) ([]model.Booking, error) {
 	var list []model.Booking
-	q := r.db.Preload("Customer").Preload("TableType").
+	q := r.db.Preload("Customer").Preload("Branch").Preload("TableType").
 		Where("branch_id = ?", branchID)
 	if date != nil {
 		q = q.Where("booking_date = ?", date.Format("2006-01-02"))
@@ -334,7 +334,7 @@ func (r *bookingRepository) FindByBranchPaged(branchID uint, date *time.Time, st
 		return nil, 0, err
 	}
 
-	q := r.db.Preload("Customer").Preload("TableType")
+	q := r.db.Preload("Customer").Preload("Branch").Preload("TableType")
 	q = applyFilters(q)
 	err := q.Order(bookingOrderClause(sortBy, sortDir, "tabl_bookings.")).
 		Offset(offset).Limit(limit).Find(&list).Error
