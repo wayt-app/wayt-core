@@ -12,6 +12,7 @@ type MediaRepository interface {
 	FindByID(id uint) (*model.Media, error)
 	DeleteByID(id uint) error
 	DeleteLogoByRestaurant(restaurantID uint) ([]model.Media, error)
+	DeleteBannerByRestaurant(restaurantID uint) ([]model.Media, error)
 }
 
 type mediaRepository struct{ db *gorm.DB }
@@ -58,6 +59,15 @@ func (r *mediaRepository) DeleteLogoByRestaurant(restaurantID uint) ([]model.Med
 	r.db.Where("restaurant_id = ? AND type = 'logo'", restaurantID).Find(&existing)
 	if len(existing) > 0 {
 		r.db.Where("restaurant_id = ? AND type = 'logo'", restaurantID).Delete(&model.Media{})
+	}
+	return existing, nil
+}
+
+func (r *mediaRepository) DeleteBannerByRestaurant(restaurantID uint) ([]model.Media, error) {
+	var existing []model.Media
+	r.db.Where("restaurant_id = ? AND type = 'banner'", restaurantID).Find(&existing)
+	if len(existing) > 0 {
+		r.db.Where("restaurant_id = ? AND type = 'banner'", restaurantID).Delete(&model.Media{})
 	}
 	return existing, nil
 }

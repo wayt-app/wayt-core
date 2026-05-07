@@ -12,6 +12,7 @@ import (
 
 type MediaService interface {
 	UploadLogo(restaurantID uint, data []byte, contentType, ext string) (*model.Media, error)
+	UploadBanner(restaurantID uint, data []byte, contentType, ext string) (*model.Media, error)
 	UploadMenu(restaurantID uint, branchID *uint, data []byte, contentType, ext string) (*model.Media, error)
 	ListByRestaurant(restaurantID uint, mediaType string) ([]model.Media, error)
 	MenuForBranch(restaurantID, branchID uint) ([]model.Media, error)
@@ -51,6 +52,31 @@ func (s *mediaService) UploadLogo(restaurantID uint, data []byte, contentType, e
 		return nil, err
 	}
 	_ = s.restaurantR.UpdateLogoURL(restaurantID, url)
+	return m, nil
+}
+
+func (s *mediaService) UploadBanner(restaurantID uint, data []byte, contentType, ext string) (*model.Media, error) {
+	existing, _ := s.repo.DeleteBannerByRestaurant(restaurantID)
+	for _, old := range existing {
+		_ = s.storage.Delete([]string{old.StoragePath})
+	}
+
+	path := fmt.Sprintf("banners/%d%s", restaurantID, ext)
+	url, err := s.storage.Upload(path, data, contentType)
+	if err != nil {
+		return nil, errors.New("gagal upload ke storage: " + err.Error())
+	}
+
+	m := &model.Media{
+		RestaurantID: restaurantID,
+		Type:         "banner",
+		URL:          url,
+		StoragePath:  path,
+	}
+	if err := s.repo.Create(m); err != nil {
+		return nil, err
+	}
+	_ = s.restaurantR.UpdateBannerURL(restaurantID, url)
 	return m, nil
 }
 
@@ -103,6 +129,9 @@ func (s *mediaService) Delete(id, restaurantID uint) error {
 	}
 	if m.Type == "logo" {
 		_ = s.restaurantR.UpdateLogoURL(restaurantID, "")
+	}
+	if m.Type == "banner" {
+		_ = s.restaurantR.UpdateBannerURL(restaurantID, "")
 	}
 	return nil
 }

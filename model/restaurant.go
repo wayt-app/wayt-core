@@ -10,6 +10,7 @@ type Restaurant struct {
 	Phone           string     `gorm:"size:20"                  json:"phone"`
 	CuisineType     string     `gorm:"size:50"                  json:"cuisine_type"`
 	LogoURL         string     `gorm:"type:text"                json:"logo_url"`
+	BannerURL       string     `gorm:"type:text"                json:"banner_url"`
 	PromoToken      string     `gorm:"size:32;uniqueIndex"      json:"promo_token,omitempty"`
 	IsActive        bool       `gorm:"default:true"             json:"is_active"`
 	BusinessOwnerID *uint      `gorm:"index"                    json:"business_owner_id,omitempty"`

@@ -16,6 +16,7 @@ type RestaurantRepository interface {
 	FindByPromoToken(token string) (*model.Restaurant, error)
 	Update(r *model.Restaurant) error
 	UpdateLogoURL(id uint, logoURL string) error
+	UpdateBannerURL(id uint, bannerURL string) error
 	Delete(id uint) error
 }
 
@@ -92,6 +93,10 @@ func (r *restaurantRepository) FindByPromoToken(token string) (*model.Restaurant
 
 func (r *restaurantRepository) UpdateLogoURL(id uint, logoURL string) error {
 	return r.db.Model(&model.Restaurant{}).Where("id = ?", id).Update("logo_url", logoURL).Error
+}
+
+func (r *restaurantRepository) UpdateBannerURL(id uint, bannerURL string) error {
+	return r.db.Model(&model.Restaurant{}).Where("id = ?", id).Update("banner_url", bannerURL).Error
 }
 
 func (r *restaurantRepository) Delete(id uint) error {
