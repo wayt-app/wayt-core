@@ -8,11 +8,11 @@ import (
 )
 
 type BranchService interface {
-	Create(restaurantID uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes int, requireConfirmation bool, latitude, longitude float64) (*model.Branch, error)
+	Create(restaurantID uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes int, requireConfirmation bool, latitude, longitude float64, minPayment int64) (*model.Branch, error)
 	ListByRestaurant(restaurantID uint) ([]model.Branch, error)
 	ListActiveByRestaurant(restaurantID uint) ([]model.Branch, error)
 	FindByID(id uint) (*model.Branch, error)
-	Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes int, requireConfirmation, isActive bool, latitude, longitude float64) (*model.Branch, error)
+	Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes int, requireConfirmation, isActive bool, latitude, longitude float64, minPayment int64) (*model.Branch, error)
 	Delete(id uint) error
 }
 
@@ -25,7 +25,7 @@ func NewBranchService(repo repository.BranchRepository, restaurantRepo repositor
 	return &branchService{repo: repo, restaurantRepo: restaurantRepo}
 }
 
-func (s *branchService) Create(restaurantID uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes int, requireConfirmation bool, latitude, longitude float64) (*model.Branch, error) {
+func (s *branchService) Create(restaurantID uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes int, requireConfirmation bool, latitude, longitude float64, minPayment int64) (*model.Branch, error) {
 	if name == "" {
 		return nil, errors.New("nama cabang wajib diisi")
 	}
@@ -37,6 +37,9 @@ func (s *branchService) Create(restaurantID uint, name, address, phone, openingH
 	}
 	if slotInterval <= 0 {
 		slotInterval = 30
+	}
+	if minPayment < 0 {
+		minPayment = 0
 	}
 	b := &model.Branch{
 		RestaurantID:           restaurantID,
@@ -52,6 +55,7 @@ func (s *branchService) Create(restaurantID uint, name, address, phone, openingH
 		IsActive:               true,
 		Latitude:               latitude,
 		Longitude:              longitude,
+		MinPayment:             minPayment,
 	}
 	if err := s.repo.Create(b); err != nil {
 		return nil, err
@@ -75,7 +79,7 @@ func (s *branchService) FindByID(id uint) (*model.Branch, error) {
 	return b, nil
 }
 
-func (s *branchService) Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes int, requireConfirmation, isActive bool, latitude, longitude float64) (*model.Branch, error) {
+func (s *branchService) Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes int, requireConfirmation, isActive bool, latitude, longitude float64, minPayment int64) (*model.Branch, error) {
 	b, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, errors.New("cabang tidak ditemukan")
@@ -98,6 +102,9 @@ func (s *branchService) Update(id uint, name, address, phone, openingHours, open
 	b.IsActive = isActive
 	b.Latitude = latitude
 	b.Longitude = longitude
+	if minPayment >= 0 {
+		b.MinPayment = minPayment
+	}
 	if err := s.repo.Update(b); err != nil {
 		return nil, err
 	}

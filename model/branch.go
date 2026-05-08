@@ -15,6 +15,7 @@ type Branch struct {
 	DefaultDurationMinutes int        `gorm:"default:120"              json:"default_duration_minutes"`
 	RequireConfirmation    bool       `gorm:"default:true"             json:"require_confirmation"`
 	IsActive               bool       `gorm:"default:true"             json:"is_active"`
+	MinPayment             int64      `gorm:"default:0"                json:"min_payment"`
 	Latitude               float64    `gorm:"default:0"                json:"latitude"`
 	Longitude              float64    `gorm:"default:0"                json:"longitude"`
 	CreatedAt              time.Time  `                                json:"created_at"`
