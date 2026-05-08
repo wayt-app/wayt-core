@@ -72,7 +72,7 @@ type AvailabilityResult struct {
 
 type BookingService interface {
 	CheckAvailability(branchID uint, dateStr, startTime string, guests int) ([]AvailabilityResult, error)
-	Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes string) (*model.Booking, error)
+	Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes, menuOrder string) (*model.Booking, error)
 	MyBookings(customerID uint) ([]model.Booking, error)
 	GetByID(id uint) (*model.Booking, error)
 	Cancel(id uint, customerID uint, reason string) error
@@ -209,7 +209,7 @@ func (s *bookingService) CheckAvailability(branchID uint, dateStr, startTime str
 	return results, nil
 }
 
-func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes string) (*model.Booking, error) {
+func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes, menuOrder string) (*model.Booking, error) {
 	branch, err := s.branchRepo.FindByID(branchID)
 	if err != nil {
 		return nil, errors.New("cabang tidak ditemukan")
@@ -297,6 +297,7 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 		TablesCount: tablesCount,
 		Status:      status,
 		Notes:       notes,
+		MenuOrder:   menuOrder,
 		IsOverLimit: isOverLimit,
 	}
 	if err := s.repo.Create(b); err != nil {

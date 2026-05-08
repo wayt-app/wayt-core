@@ -1,0 +1,1 @@
+ALTER TABLE tabl_bookings ADD COLUMN IF NOT EXISTS menu_order TEXT NOT NULL DEFAULT '';
