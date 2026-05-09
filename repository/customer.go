@@ -25,6 +25,7 @@ type CustomerRepository interface {
 	UpdateAvatarURL(id uint, url string) error
 	FindByGoogleID(googleID string) (*model.Customer, error)
 	SetGoogleInfo(id uint, googleID, avatarURL string) error
+	FindByPhone(phone string) (*model.Customer, error)
 }
 
 type customerRepository struct{ db *gorm.DB }
@@ -115,6 +116,11 @@ func (r *customerRepository) IncrementTokenVersion(id uint) error {
 func (r *customerRepository) FindByGoogleID(googleID string) (*model.Customer, error) {
 	var c model.Customer
 	return &c, r.db.Where("google_id = ?", googleID).First(&c).Error
+}
+
+func (r *customerRepository) FindByPhone(phone string) (*model.Customer, error) {
+	var c model.Customer
+	return &c, r.db.Where("phone = ?", phone).First(&c).Error
 }
 
 func (r *customerRepository) SetGoogleInfo(id uint, googleID, avatarURL string) error {
