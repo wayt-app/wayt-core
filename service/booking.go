@@ -642,7 +642,11 @@ func (s *bookingService) CheckIn(id uint) error {
 	if b.Status != model.BookingStatusConfirmed {
 		return errors.New("hanya booking confirmed yang bisa check-in")
 	}
-	return s.repo.UpdateStatus(id, model.BookingStatusCheckedIn)
+	if err := s.repo.UpdateStatus(id, model.BookingStatusCheckedIn); err != nil {
+		return err
+	}
+	go s.sendBookingEmail(b, "checked_in")
+	return nil
 }
 
 func (s *bookingService) GetDashboardStats(branchID uint, dateStr string) (*DashboardStats, error) {
@@ -796,6 +800,21 @@ func (s *bookingService) sendBookingEmail(b *model.Booking, event string) {
 </table>
 <p>Sampai jumpa!</p>`,
 			customer.Name, branch.Name, dateStr, b.StartTime, b.EndTime, b.GuestCount, b.ID)
+
+	case "checked_in":
+		subject = fmt.Sprintf("Check-in Berhasil — %s", branch.Name)
+		body = fmt.Sprintf(`
+<p>Halo <strong>%s</strong>,</p>
+<p>Anda telah berhasil <strong style="color:#7c3aed">check-in</strong> di <strong>%s</strong>. Selamat menikmati!</p>
+<table style="border-collapse:collapse;margin:16px 0">
+  <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Restoran</td><td><strong>%s</strong></td></tr>
+  <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Tanggal</td><td>%s</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Waktu</td><td>%s – %s</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;color:#6b7280">Tamu</td><td>%d orang</td></tr>
+  <tr><td style="padding:4px 12px 4px 0;color:#6b7280">ID Booking</td><td>#%d</td></tr>
+</table>
+<p>Terima kasih telah memilih kami. Semoga pengalaman makan Anda menyenangkan! 🍽️</p>`,
+			customer.Name, branch.Name, branch.Name, dateStr, b.StartTime, b.EndTime, b.GuestCount, b.ID)
 
 	case "cancelled":
 		subject = fmt.Sprintf("Booking #%d Dibatalkan — %s", b.ID, branch.Name)
