@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -38,6 +39,7 @@ type BusinessOwnerService interface {
 	LoginOrRegisterWithGoogle(googleID, email, name, avatarURL string) (string, error)
 	GetGoogleOAuthURL(state string) string
 	ExchangeGoogleCode(code string) (googleID, email, name, avatarURL string, err error)
+	InviteOwner(name, email, phone string) (*model.BusinessOwner, error)
 }
 
 type businessOwnerService struct {
@@ -551,4 +553,64 @@ func (s *businessOwnerService) LoginOrRegisterWithGoogle(googleID, emailAddr, na
 		return "", errors.New("gagal membuat token")
 	}
 	return signed, nil
+}
+
+func (s *businessOwnerService) InviteOwner(name, ownerEmail, phone string) (*model.BusinessOwner, error) {
+	ownerEmail = strings.ToLower(strings.TrimSpace(ownerEmail))
+	if strings.TrimSpace(name) == "" || ownerEmail == "" {
+		return nil, errors.New("nama dan email wajib diisi")
+	}
+	if _, err := s.repo.FindByEmail(ownerEmail); err == nil {
+		return nil, errors.New("email sudah terdaftar sebagai owner")
+	}
+
+	randBytes := make([]byte, 32)
+	if _, err := rand.Read(randBytes); err != nil {
+		return nil, errors.New("gagal membuat akun")
+	}
+	hashed, err := bcrypt.GenerateFromPassword(randBytes, bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	owner := &model.BusinessOwner{
+		Name:       strings.TrimSpace(name),
+		Email:      ownerEmail,
+		Phone:      strings.TrimSpace(phone),
+		Password:   string(hashed),
+		IsVerified: true,
+	}
+	if err := s.repo.Create(owner); err != nil {
+		return nil, errors.New("gagal membuat akun owner")
+	}
+
+	inviteToken, err := generateToken()
+	if err != nil {
+		return nil, errors.New("gagal membuat token undangan")
+	}
+	expiresAt := time.Now().UTC().Add(7 * 24 * time.Hour)
+	if err := s.repo.SetResetToken(owner.ID, inviteToken, expiresAt); err != nil {
+		return nil, errors.New("gagal menyimpan token undangan")
+	}
+
+	html := fmt.Sprintf(`
+<p>Halo <strong>%s</strong>,</p>
+<p>Selamat datang di <strong>Wayt Business</strong>! Akun Anda telah dibuat oleh tim Wayt.</p>
+<p>Gunakan token berikut untuk mengatur password akun Anda (berlaku 7 hari):</p>
+<p style="font-size:28px;font-weight:bold;letter-spacing:6px;color:#7c3aed;text-align:center">%s</p>
+<p>Langkah selanjutnya:</p>
+<ol>
+  <li>Buka aplikasi Wayt Business</li>
+  <li>Pilih <strong>"Lupa Password"</strong></li>
+  <li>Masukkan email Anda: <strong>%s</strong></li>
+  <li>Masukkan token di atas</li>
+  <li>Buat password baru Anda</li>
+</ol>
+<p>Jika Anda tidak merasa mendaftar, abaikan email ini.</p>
+`, owner.Name, inviteToken, owner.Email)
+	if err := s.emailSvc.Send(ownerEmail, "Undangan Wayt Business — Akun Anda Siap", html); err != nil {
+		log.Printf("[EMAIL ERROR] invite owner %s: %v", ownerEmail, err)
+	}
+
+	return owner, nil
 }
