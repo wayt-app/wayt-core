@@ -70,6 +70,17 @@ type AvailabilityResult struct {
 	EndTime       string `json:"end_time"`
 }
 
+type CustomerSummary struct {
+	CustomerID  uint      `json:"customer_id"`
+	Name        string    `json:"name"`
+	Email       string    `json:"email"`
+	Phone       string    `json:"phone"`
+	TotalVisits int64     `json:"total_visits"`
+	LastVisit   time.Time `json:"last_visit"`
+	TotalSpend  int64     `json:"total_spend"`
+	Segment     string    `json:"segment"` // "new", "regular", "loyal"
+}
+
 type BookingService interface {
 	CheckAvailability(branchID uint, dateStr, startTime string, guests int) ([]AvailabilityResult, error)
 	Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes, menuOrder string) (*model.Booking, error)
@@ -96,6 +107,9 @@ type BookingService interface {
 	MyBookingsPaged(customerID uint, sortBy, sortDir string, page, limit int) (*BookingPage, error)
 	// ProcessReminders sends H-1 reminder notifications for tomorrow's bookings.
 	ProcessReminders() error
+	// ListCustomersByRestaurant returns aggregated customer data for a restaurant for retention purposes.
+	// Sorted by last_visit ASC (longest-absent first).
+	ListCustomersByRestaurant(restaurantID uint) ([]CustomerSummary, error)
 }
 
 // ReservationIncrementer is a narrow interface so bookingService can trigger
@@ -1137,6 +1151,33 @@ func (s *bookingService) sendRescheduleNotif(b *model.Booking, oldDate time.Time
 			_ = s.notifSvc.Send("staff", st.ID, "Jadwal Booking Diubah", ownerMsg)
 		}
 	}
+}
+
+func (s *bookingService) ListCustomersByRestaurant(restaurantID uint) ([]CustomerSummary, error) {
+	rows, err := s.repo.ListCustomerSummaryByRestaurant(restaurantID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]CustomerSummary, 0, len(rows))
+	for _, r := range rows {
+		segment := "new"
+		if r.TotalVisits >= 5 {
+			segment = "loyal"
+		} else if r.TotalVisits >= 2 {
+			segment = "regular"
+		}
+		result = append(result, CustomerSummary{
+			CustomerID:  r.CustomerID,
+			Name:        r.Name,
+			Email:       r.Email,
+			Phone:       r.Phone,
+			TotalVisits: r.TotalVisits,
+			LastVisit:   r.LastVisit,
+			TotalSpend:  r.TotalSpend,
+			Segment:     segment,
+		})
+	}
+	return result, nil
 }
 
 // ProcessReminders sends H-1 reminders for tomorrow's bookings (pending or confirmed).

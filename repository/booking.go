@@ -46,6 +46,19 @@ type BookingRepository interface {
 	FindByBranchPaged(branchID uint, date *time.Time, status *model.BookingStatus, search, sortBy, sortDir string, offset, limit int) ([]model.Booking, int64, error)
 	// CompleteWithDetails sets status to completed and saves completion notes + total bill.
 	CompleteWithDetails(id uint, notes string, totalBill int64) error
+	// ListCustomerSummaryByRestaurant returns aggregated completed-booking data per customer for a restaurant.
+	ListCustomerSummaryByRestaurant(restaurantID uint) ([]CustomerSummaryRow, error)
+}
+
+// CustomerSummaryRow is the raw DB result used by the repository.
+type CustomerSummaryRow struct {
+	CustomerID  uint      `gorm:"column:customer_id"`
+	Name        string    `gorm:"column:name"`
+	Email       string    `gorm:"column:email"`
+	Phone       string    `gorm:"column:phone"`
+	TotalVisits int64     `gorm:"column:total_visits"`
+	LastVisit   time.Time `gorm:"column:last_visit"`
+	TotalSpend  int64     `gorm:"column:total_spend"`
 }
 
 type bookingRepository struct{ db *gorm.DB }
@@ -136,6 +149,29 @@ func (r *bookingRepository) CompleteWithDetails(id uint, notes string, totalBill
 			"completion_notes": notes,
 			"total_bill":       totalBill,
 		}).Error
+}
+
+func (r *bookingRepository) ListCustomerSummaryByRestaurant(restaurantID uint) ([]CustomerSummaryRow, error) {
+	var rows []CustomerSummaryRow
+	err := r.db.Raw(`
+		SELECT
+			c.id          AS customer_id,
+			c.name        AS name,
+			c.email       AS email,
+			c.phone       AS phone,
+			COUNT(b.id)   AS total_visits,
+			MAX(b.booking_date) AS last_visit,
+			COALESCE(SUM(b.total_bill), 0) AS total_spend
+		FROM tabl_customers c
+		INNER JOIN tabl_bookings b  ON b.customer_id = c.id AND b.deleted_at IS NULL
+		INNER JOIN tabl_branches br ON b.branch_id = br.id  AND br.deleted_at IS NULL
+		INNER JOIN tabl_restaurants r ON br.restaurant_id = r.id AND r.deleted_at IS NULL
+		WHERE r.id = ?
+		  AND b.status = 'completed'
+		GROUP BY c.id, c.name, c.email, c.phone
+		ORDER BY last_visit ASC
+	`, restaurantID).Scan(&rows).Error
+	return rows, err
 }
 
 func (r *bookingRepository) UpdateTableType(id uint, tableTypeID uint) error {
