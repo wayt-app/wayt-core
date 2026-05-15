@@ -25,9 +25,11 @@ type Booking struct {
 	GuestCount  int           `gorm:"not null"                           json:"guest_count"`
 	TablesCount int           `gorm:"not null;default:1"                 json:"tables_count"`
 	Status      BookingStatus `gorm:"type:tabl_booking_status;default:'pending'" json:"status"`
-	Notes        string        `gorm:"type:text"                          json:"notes"`
-	MenuOrder    string        `gorm:"type:text"                          json:"menu_order"`
-	CancelReason string        `gorm:"type:text"                          json:"cancel_reason,omitempty"`
+	Notes           string        `gorm:"type:text"                          json:"notes"`
+	MenuOrder       string        `gorm:"type:text"                          json:"menu_order"`
+	CancelReason    string        `gorm:"type:text"                          json:"cancel_reason,omitempty"`
+	CompletionNotes string        `gorm:"type:text;not null;default:''"      json:"completion_notes,omitempty"`
+	TotalBill       int64         `gorm:"not null;default:0"                 json:"total_bill,omitempty"`
 	IsOverLimit  bool          `gorm:"not null;default:false"             json:"is_over_limit"`
 	ReminderSent bool          `gorm:"not null;default:false"             json:"-"`
 	CreatedAt    time.Time     `                                          json:"created_at"`

@@ -44,6 +44,8 @@ type BookingRepository interface {
 	// search filters by customer name or phone (case-insensitive).
 	// sortBy: "booking_date" or "created_at"; sortDir: "asc" or "desc".
 	FindByBranchPaged(branchID uint, date *time.Time, status *model.BookingStatus, search, sortBy, sortDir string, offset, limit int) ([]model.Booking, int64, error)
+	// CompleteWithDetails sets status to completed and saves completion notes + total bill.
+	CompleteWithDetails(id uint, notes string, totalBill int64) error
 }
 
 type bookingRepository struct{ db *gorm.DB }
@@ -125,6 +127,15 @@ func (r *bookingRepository) UpdateStatus(id uint, status model.BookingStatus) er
 func (r *bookingRepository) UpdateStatusAndReason(id uint, status model.BookingStatus, reason string) error {
 	return r.db.Model(&model.Booking{}).Where("id = ?", id).
 		Updates(map[string]interface{}{"status": status, "cancel_reason": reason}).Error
+}
+
+func (r *bookingRepository) CompleteWithDetails(id uint, notes string, totalBill int64) error {
+	return r.db.Model(&model.Booking{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":           model.BookingStatusCompleted,
+			"completion_notes": notes,
+			"total_bill":       totalBill,
+		}).Error
 }
 
 func (r *bookingRepository) UpdateTableType(id uint, tableTypeID uint) error {

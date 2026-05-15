@@ -90,7 +90,7 @@ type BookingService interface {
 	ListByBranch(branchID uint, dateStr string, status *model.BookingStatus) ([]model.Booking, error)
 	ListByBranchPaged(branchID uint, dateStr string, status *model.BookingStatus, search, sortBy, sortDir string, page, limit int) (*BookingPage, error)
 	Confirm(id uint) error
-	Complete(id uint) error
+	Complete(id uint, notes string, totalBill int64) error
 	AdminCancel(id uint, reason string) error
 	// MyBookingsPaged returns a paginated list of a customer's bookings.
 	MyBookingsPaged(customerID uint, sortBy, sortDir string, page, limit int) (*BookingPage, error)
@@ -439,7 +439,7 @@ func (s *bookingService) Confirm(id uint) error {
 	return nil
 }
 
-func (s *bookingService) Complete(id uint) error {
+func (s *bookingService) Complete(id uint, notes string, totalBill int64) error {
 	b, err := s.repo.FindByID(id)
 	if err != nil {
 		return errors.New("booking tidak ditemukan")
@@ -447,7 +447,10 @@ func (s *bookingService) Complete(id uint) error {
 	if b.Status != model.BookingStatusConfirmed && b.Status != model.BookingStatusCheckedIn {
 		return errors.New("hanya booking confirmed atau checked_in yang bisa diselesaikan")
 	}
-	return s.repo.UpdateStatus(id, model.BookingStatusCompleted)
+	if totalBill < 0 {
+		return errors.New("total biaya tidak boleh negatif")
+	}
+	return s.repo.CompleteWithDetails(id, strings.TrimSpace(notes), totalBill)
 }
 
 func (s *bookingService) AdminCancel(id uint, reason string) error {
