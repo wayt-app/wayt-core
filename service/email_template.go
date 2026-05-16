@@ -50,7 +50,11 @@ func wrapEmailHTML(body string, cfg *model.EmailConfig, recipientName, restauran
 	}
 
 	header := buildEmailHeader(headerImageURL)
-	profileSection := buildProfileSection(restaurantLogoURL, restaurantName)
+	profileLogoURL := restaurantLogoURL
+	if profileLogoURL == "" {
+		profileLogoURL = logoURL
+	}
+	profileSection := buildProfileSection(profileLogoURL, restaurantName)
 	footer := buildEmailFooter(logoURL, instagramURL, facebookURL, tiktokURL, websiteURL, supportEmail, footerNote, copyright)
 
 	return fmt.Sprintf(`<!DOCTYPE html>
