@@ -13,6 +13,8 @@ type ReviewService interface {
 	FindByBookingID(bookingID uint) (*model.Review, error)
 	ListByRestaurant(restaurantID uint, limit, offset int) ([]model.Review, int64, error)
 	StatsByRestaurant(restaurantID uint) (avgRating float64, total int64, err error)
+	ListByBranch(branchID, restaurantID uint, limit, offset int) ([]model.Review, int64, error)
+	StatsByBranch(branchID, restaurantID uint) (avgRating float64, total int64, err error)
 }
 
 type reviewService struct {
@@ -91,4 +93,15 @@ func (s *reviewService) ListByRestaurant(restaurantID uint, limit, offset int) (
 
 func (s *reviewService) StatsByRestaurant(restaurantID uint) (float64, int64, error) {
 	return s.repo.StatsByRestaurantID(restaurantID)
+}
+
+func (s *reviewService) ListByBranch(branchID, restaurantID uint, limit, offset int) ([]model.Review, int64, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	return s.repo.FindByBranchID(branchID, restaurantID, limit, offset)
+}
+
+func (s *reviewService) StatsByBranch(branchID, restaurantID uint) (float64, int64, error) {
+	return s.repo.StatsByBranchID(branchID, restaurantID)
 }

@@ -10,6 +10,8 @@ type ReviewRepository interface {
 	FindByBookingID(bookingID uint) (*model.Review, error)
 	FindByRestaurantID(restaurantID uint, limit, offset int) ([]model.Review, int64, error)
 	StatsByRestaurantID(restaurantID uint) (avgRating float64, total int64, err error)
+	FindByBranchID(branchID, restaurantID uint, limit, offset int) ([]model.Review, int64, error)
+	StatsByBranchID(branchID, restaurantID uint) (avgRating float64, total int64, err error)
 }
 
 type reviewRepository struct{ db *gorm.DB }
@@ -34,7 +36,7 @@ func (r *reviewRepository) FindByRestaurantID(restaurantID uint, limit, offset i
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	err := q.Preload("Customer").Order("id desc").Limit(limit).Offset(offset).Find(&list).Error
+	err := q.Preload("Customer").Preload("Branch").Order("id desc").Limit(limit).Offset(offset).Find(&list).Error
 	return list, total, err
 }
 
@@ -46,6 +48,29 @@ func (r *reviewRepository) StatsByRestaurantID(restaurantID uint) (float64, int6
 	err := r.db.Raw(
 		`SELECT COALESCE(AVG(rating), 0) AS avg, COUNT(*) AS total FROM tabl_reviews WHERE restaurant_id = ?`,
 		restaurantID,
+	).Scan(&result).Error
+	return result.Avg, result.Total, err
+}
+
+func (r *reviewRepository) FindByBranchID(branchID, restaurantID uint, limit, offset int) ([]model.Review, int64, error) {
+	var list []model.Review
+	var total int64
+	q := r.db.Model(&model.Review{}).Where("branch_id = ? AND restaurant_id = ?", branchID, restaurantID)
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := q.Preload("Customer").Preload("Branch").Order("id desc").Limit(limit).Offset(offset).Find(&list).Error
+	return list, total, err
+}
+
+func (r *reviewRepository) StatsByBranchID(branchID, restaurantID uint) (float64, int64, error) {
+	var result struct {
+		Avg   float64
+		Total int64
+	}
+	err := r.db.Raw(
+		`SELECT COALESCE(AVG(rating), 0) AS avg, COUNT(*) AS total FROM tabl_reviews WHERE branch_id = ? AND restaurant_id = ?`,
+		branchID, restaurantID,
 	).Scan(&result).Error
 	return result.Avg, result.Total, err
 }

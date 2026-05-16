@@ -11,6 +11,7 @@ type Review struct {
 	Rating       int       `gorm:"not null"                     json:"rating"` // 1–5
 	Comment      *string   `gorm:"type:text"                    json:"comment,omitempty"`
 	Customer     *Customer `gorm:"foreignKey:CustomerID"        json:"customer,omitempty"`
+	Branch       *Branch   `gorm:"foreignKey:BranchID"          json:"branch,omitempty"`
 	CreatedAt    time.Time `                                     json:"created_at"`
 	UpdatedAt    time.Time `                                     json:"updated_at"`
 }
