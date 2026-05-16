@@ -119,18 +119,19 @@ type ReservationIncrementer interface {
 }
 
 type bookingService struct {
-	repo           repository.BookingRepository
-	branchRepo     repository.BranchRepository
-	tableTypeRepo  repository.TableTypeRepository
-	customerRepo   repository.CustomerRepository
-	subRepo        repository.SubscriptionRepository
-	restaurantRepo repository.RestaurantRepository
-	staffRepo      repository.StaffRepository
-	ownerRepo      repository.BusinessOwnerRepository
-	waSender       whatsapp.Sender
-	emailSender    email.Sender
-	notifSvc       NotificationService
-	reservIncr     ReservationIncrementer
+	repo            repository.BookingRepository
+	branchRepo      repository.BranchRepository
+	tableTypeRepo   repository.TableTypeRepository
+	customerRepo    repository.CustomerRepository
+	subRepo         repository.SubscriptionRepository
+	restaurantRepo  repository.RestaurantRepository
+	staffRepo       repository.StaffRepository
+	ownerRepo       repository.BusinessOwnerRepository
+	waSender        whatsapp.Sender
+	emailSender     email.Sender
+	notifSvc        NotificationService
+	reservIncr      ReservationIncrementer
+	emailConfigRepo repository.EmailConfigRepository
 }
 
 func NewBookingService(
@@ -146,20 +147,22 @@ func NewBookingService(
 	emailSender email.Sender,
 	notifSvc NotificationService,
 	reservIncr ReservationIncrementer,
+	emailConfigRepo repository.EmailConfigRepository,
 ) BookingService {
 	return &bookingService{
-		repo:           repo,
-		branchRepo:     branchRepo,
-		tableTypeRepo:  tableTypeRepo,
-		customerRepo:   customerRepo,
-		subRepo:        subRepo,
-		restaurantRepo: restaurantRepo,
-		staffRepo:      staffRepo,
-		ownerRepo:      ownerRepo,
-		waSender:       waSender,
-		emailSender:    emailSender,
-		notifSvc:       notifSvc,
-		reservIncr:     reservIncr,
+		repo:            repo,
+		branchRepo:      branchRepo,
+		tableTypeRepo:   tableTypeRepo,
+		customerRepo:    customerRepo,
+		subRepo:         subRepo,
+		restaurantRepo:  restaurantRepo,
+		staffRepo:       staffRepo,
+		ownerRepo:       ownerRepo,
+		waSender:        waSender,
+		emailSender:     emailSender,
+		notifSvc:        notifSvc,
+		reservIncr:      reservIncr,
+		emailConfigRepo: emailConfigRepo,
 	}
 }
 
@@ -762,6 +765,11 @@ func (s *bookingService) sendBookingEmail(b *model.Booking, event string) {
 	if recipientEmail == "" {
 		return
 	}
+
+	var emailCfg *model.EmailConfig
+	if s.emailConfigRepo != nil {
+		emailCfg, _ = s.emailConfigRepo.Get()
+	}
 	branch, err := s.branchRepo.FindByID(b.BranchID)
 	if err != nil {
 		return
@@ -879,7 +887,12 @@ func (s *bookingService) sendBookingEmail(b *model.Booking, event string) {
 		return
 	}
 
-	if err := s.emailSender.Send(recipientEmail, subject, body); err != nil {
+	var restLogoURL string
+	if rest, rerr := s.restaurantRepo.FindByID(branch.RestaurantID); rerr == nil {
+		restLogoURL = rest.LogoURL
+	}
+	wrapped := wrapEmailHTML(body, emailCfg, customer.Name, branch.Name, restLogoURL)
+	if err := s.emailSender.Send(recipientEmail, subject, wrapped); err != nil {
 		log.Printf("[EMAIL ERROR] booking #%d ke %s: %v", b.ID, recipientEmail, err)
 	}
 }
