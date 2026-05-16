@@ -12,6 +12,7 @@ import (
 type NotificationService interface {
 	Send(userType string, userID uint, title, message string) error
 	List(userType string, userID uint) ([]model.Notification, error)
+	ListUnread(userType string, userID uint) ([]model.Notification, error)
 	CountUnread(userType string, userID uint) (int64, error)
 	MarkAllRead(userType string, userID uint) error
 }
@@ -54,7 +55,11 @@ func (s *notificationService) Send(userType string, userID uint, title, message 
 }
 
 func (s *notificationService) List(userType string, userID uint) ([]model.Notification, error) {
-	return s.repo.FindByUser(userType, userID, 30)
+	return s.repo.FindByUser(userType, userID, 20)
+}
+
+func (s *notificationService) ListUnread(userType string, userID uint) ([]model.Notification, error) {
+	return s.repo.FindUnreadByUser(userType, userID, 20)
 }
 
 func (s *notificationService) CountUnread(userType string, userID uint) (int64, error) {

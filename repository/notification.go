@@ -8,6 +8,7 @@ import (
 type NotificationRepository interface {
 	Create(n *model.Notification) error
 	FindByUser(userType string, userID uint, limit int) ([]model.Notification, error)
+	FindUnreadByUser(userType string, userID uint, limit int) ([]model.Notification, error)
 	CountUnread(userType string, userID uint) (int64, error)
 	MarkAllRead(userType string, userID uint) error
 	MarkRead(id uint) error
@@ -26,6 +27,16 @@ func (r *notificationRepository) Create(n *model.Notification) error {
 func (r *notificationRepository) FindByUser(userType string, userID uint, limit int) ([]model.Notification, error) {
 	var list []model.Notification
 	q := r.db.Where("user_type = ? AND user_id = ?", userType, userID).Order("created_at DESC")
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+	err := q.Find(&list).Error
+	return list, err
+}
+
+func (r *notificationRepository) FindUnreadByUser(userType string, userID uint, limit int) ([]model.Notification, error) {
+	var list []model.Notification
+	q := r.db.Where("user_type = ? AND user_id = ? AND is_read = false", userType, userID).Order("created_at DESC")
 	if limit > 0 {
 		q = q.Limit(limit)
 	}
