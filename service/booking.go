@@ -83,7 +83,7 @@ type CustomerSummary struct {
 
 type BookingService interface {
 	CheckAvailability(branchID uint, dateStr, startTime string, guests int) ([]AvailabilityResult, error)
-	Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes, menuOrder string) (*model.Booking, error)
+	Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes, menuOrder, source, guestEmail string) (*model.Booking, error)
 	MyBookings(customerID uint) ([]model.Booking, error)
 	GetByID(id uint) (*model.Booking, error)
 	Cancel(id uint, customerID uint, reason string) error
@@ -223,7 +223,7 @@ func (s *bookingService) CheckAvailability(branchID uint, dateStr, startTime str
 	return results, nil
 }
 
-func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes, menuOrder string) (*model.Booking, error) {
+func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes, menuOrder, source, guestEmail string) (*model.Booking, error) {
 	branch, err := s.branchRepo.FindByID(branchID)
 	if err != nil {
 		return nil, errors.New("cabang tidak ditemukan")
@@ -300,6 +300,9 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 		}
 	}
 
+	if source == "" {
+		source = "app"
+	}
 	b := &model.Booking{
 		CustomerID:  customerID,
 		BranchID:    branchID,
@@ -313,6 +316,8 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 		Notes:       notes,
 		MenuOrder:   menuOrder,
 		IsOverLimit: isOverLimit,
+		Source:      source,
+		GuestEmail:  guestEmail,
 	}
 	if err := s.repo.Create(b); err != nil {
 		return nil, err
@@ -747,7 +752,14 @@ func (s *bookingService) sendBookingNotif(b *model.Booking, event string) {
 // Errors are ignored — notifications are best-effort.
 func (s *bookingService) sendBookingEmail(b *model.Booking, event string) {
 	customer, err := s.customerRepo.FindByID(b.CustomerID)
-	if err != nil || customer.Email == "" {
+	if err != nil {
+		return
+	}
+	recipientEmail := customer.Email
+	if b.GuestEmail != "" {
+		recipientEmail = b.GuestEmail
+	}
+	if recipientEmail == "" {
 		return
 	}
 	branch, err := s.branchRepo.FindByID(b.BranchID)
@@ -867,8 +879,8 @@ func (s *bookingService) sendBookingEmail(b *model.Booking, event string) {
 		return
 	}
 
-	if err := s.emailSender.Send(customer.Email, subject, body); err != nil {
-		log.Printf("[EMAIL ERROR] booking #%d ke %s: %v", b.ID, customer.Email, err)
+	if err := s.emailSender.Send(recipientEmail, subject, body); err != nil {
+		log.Printf("[EMAIL ERROR] booking #%d ke %s: %v", b.ID, recipientEmail, err)
 	}
 }
 

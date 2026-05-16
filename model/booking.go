@@ -30,6 +30,8 @@ type Booking struct {
 	CancelReason    string        `gorm:"type:text"                          json:"cancel_reason,omitempty"`
 	CompletionNotes string        `gorm:"type:text;not null;default:''"      json:"completion_notes,omitempty"`
 	TotalBill       int64         `gorm:"not null;default:0"                 json:"total_bill,omitempty"`
+	Source          string        `gorm:"size:20;not null;default:'app'"     json:"source"`
+	GuestEmail      string        `gorm:"size:150;not null;default:''"       json:"guest_email,omitempty"`
 	IsOverLimit  bool          `gorm:"not null;default:false"             json:"is_over_limit"`
 	ReminderSent bool          `gorm:"not null;default:false"             json:"-"`
 	CreatedAt    time.Time     `                                          json:"created_at"`
