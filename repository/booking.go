@@ -163,7 +163,7 @@ func (r *bookingRepository) ListCustomerSummaryByRestaurant(restaurantID uint) (
 			MAX(b.booking_date) AS last_visit,
 			COALESCE(SUM(b.total_bill), 0) AS total_spend
 		FROM tabl_customers c
-		INNER JOIN tabl_bookings b  ON b.customer_id = c.id AND b.deleted_at IS NULL
+		INNER JOIN tabl_bookings b  ON b.customer_id = c.id
 		INNER JOIN tabl_branches br ON b.branch_id = br.id  AND br.deleted_at IS NULL
 		INNER JOIN tabl_restaurants r ON br.restaurant_id = r.id AND r.deleted_at IS NULL
 		WHERE r.id = ?
