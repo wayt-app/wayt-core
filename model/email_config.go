@@ -11,6 +11,7 @@ type EmailConfig struct {
 	TiktokURL      string    `gorm:"type:text;default:''"     json:"tiktok_url"`
 	WebsiteURL     string    `gorm:"type:text;default:'https://wayt.fun'" json:"website_url"`
 	SupportEmail   string    `gorm:"size:150;default:'support@wayt.fun'"  json:"support_email"`
+	FooterBgURL    string    `gorm:"type:text;default:''"     json:"footer_bg_url"`
 	FooterNote     string    `gorm:"type:text;default:'Email ini dikirim secara otomatis, mohon tidak membalas email ini.'" json:"footer_note"`
 	Copyright      string    `gorm:"type:text;default:'© 2026 Wayt. All rights reserved.'" json:"copyright"`
 	UpdatedAt      time.Time `                                json:"updated_at"`
