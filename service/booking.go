@@ -961,7 +961,16 @@ func (s *bookingService) sendOwnerBookingEmail(b *model.Booking, event string) {
 		dateStr, b.StartTime, b.EndTime, b.GuestCount, b.ID,
 		notesRow)
 
-	if err := s.emailSender.Send(owner.Email, subject, body); err != nil {
+	var emailCfg *model.EmailConfig
+	if s.emailConfigRepo != nil {
+		emailCfg, _ = s.emailConfigRepo.Get()
+	}
+	var restLogoURL string
+	if rest, rerr := s.restaurantRepo.FindByID(branch.RestaurantID); rerr == nil {
+		restLogoURL = rest.LogoURL
+	}
+	wrapped := wrapEmailHTML(body, emailCfg, owner.Name, branch.Name, restLogoURL)
+	if err := s.emailSender.Send(owner.Email, subject, wrapped); err != nil {
 		log.Printf("[EMAIL ERROR] notif owner booking #%d ke %s: %v", b.ID, owner.Email, err)
 	}
 }

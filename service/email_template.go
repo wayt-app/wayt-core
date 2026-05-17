@@ -120,56 +120,64 @@ func buildProfileSection(restaurantLogoURL, restaurantName string) string {
 </td></tr>`, logoHTML, restaurantName)
 }
 
+func socialIconCell(url, svgPath string) string {
+	return fmt.Sprintf(`<td style="padding:0 5px;"><a href="%s" target="_blank" style="display:block;text-decoration:none;"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40" style="display:block;">%s</svg></a></td>`, url, svgPath)
+}
+
 func buildEmailFooter(logoURL, instagramURL, facebookURL, tiktokURL, websiteURL, supportEmail, footerNote, copyright string) string {
 	logoHTML := ""
 	if logoURL != "" {
-		logoHTML = fmt.Sprintf(`<img src="%s" alt="Wayt" style="height:36px;display:block;" />`, logoURL)
+		logoHTML = fmt.Sprintf(`<img src="%s" alt="Wayt" style="height:40px;display:block;max-width:140px;" />`, logoURL)
 	} else {
-		logoHTML = `<span style="font-size:22px;font-weight:900;color:#7c3aed;letter-spacing:-1px;">wayt</span>`
+		logoHTML = `<span style="font-size:26px;font-weight:900;color:#7c3aed;letter-spacing:-1px;font-family:Arial,Helvetica,sans-serif;">wayt</span>`
 	}
 
-	socialHTML := ""
+	// Social icons as table cells — table layout guarantees horizontal rendering on all email clients
+	igSVG := `<circle cx="20" cy="20" r="20" fill="#7c3aed"/><rect x="11" y="11" width="18" height="18" rx="5" ry="5" fill="none" stroke="white" stroke-width="1.5"/><circle cx="20" cy="20" r="4.5" fill="none" stroke="white" stroke-width="1.5"/><circle cx="26" cy="14" r="1.5" fill="white"/>`
+	fbSVG := `<circle cx="20" cy="20" r="20" fill="#7c3aed"/><path d="M24 11h-2.5C18.9 11 17 12.9 17 15.5V18h-2.5v3.5H17V29h4v-7.5h2.5l.5-3.5H21v-2.5c0-.8.7-1.5 1.5-1.5H24V11z" fill="white"/>`
+	ttSVG := `<circle cx="20" cy="20" r="20" fill="#7c3aed"/><path d="M28 15.5c-1.5-.8-2.5-2.2-2.9-3.8H22.7V24a2.5 2.5 0 0 1-2.4 2.3 2.5 2.5 0 0 1-2.5-2.5 2.5 2.5 0 0 1 2.5-2.4c.2 0 .5 0 .7.1v-2.6c-.2 0-.5-.1-.7-.1A5 5 0 0 0 15.3 24a5 5 0 0 0 5 5 5 5 0 0 0 5-5V19.6a9.2 9.2 0 0 0 3.3 1.1V18c-.4 0-1-.2-.6-.5z" fill="white"/>`
+
+	var socialCells string
 	if instagramURL != "" {
-		socialHTML += fmt.Sprintf(`<a href="%s" style="display:inline-block;width:36px;height:36px;border-radius:50%%;background:#7c3aed;margin:0 4px;text-align:center;line-height:36px;color:#fff;text-decoration:none;font-size:14px;">ig</a>`, instagramURL)
+		socialCells += socialIconCell(instagramURL, igSVG)
 	}
 	if facebookURL != "" {
-		socialHTML += fmt.Sprintf(`<a href="%s" style="display:inline-block;width:36px;height:36px;border-radius:50%%;background:#7c3aed;margin:0 4px;text-align:center;line-height:36px;color:#fff;text-decoration:none;font-size:14px;">fb</a>`, facebookURL)
+		socialCells += socialIconCell(facebookURL, fbSVG)
 	}
 	if tiktokURL != "" {
-		socialHTML += fmt.Sprintf(`<a href="%s" style="display:inline-block;width:36px;height:36px;border-radius:50%%;background:#7c3aed;margin:0 4px;text-align:center;line-height:36px;color:#fff;text-decoration:none;font-size:14px;">tt</a>`, tiktokURL)
+		socialCells += socialIconCell(tiktokURL, ttSVG)
 	}
 
 	socialSection := ""
-	if socialHTML != "" {
-		socialSection = fmt.Sprintf(`<p style="margin:0 0 12px;">%s</p>`, socialHTML)
+	if socialCells != "" {
+		socialSection = fmt.Sprintf(`<p style="margin:16px 0 8px;font-size:12px;font-weight:700;color:#374151;font-family:Arial,Helvetica,sans-serif;text-align:center;">Temukan kami</p>
+<table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 0;"><tr>%s</tr></table>`, socialCells)
 	}
 
-	return fmt.Sprintf(`<tr><td style="background:#f9fafb;padding:28px 40px;border-top:1px solid #e5e7eb;">
+	return fmt.Sprintf(`<tr><td style="background:#f9fafb;padding:28px 32px 24px;border-top:1px solid #e5e7eb;">
 <table width="100%%" cellpadding="0" cellspacing="0">
 <tr>
-<td width="40%%" valign="top">
+<td valign="top" style="padding-right:16px;">
 %s
-<p style="margin:8px 0 0;font-size:12px;color:#6b7280;">Reservasi lebih mudah,<br/>antrean jadi lebih baik.</p>
+<p style="margin:8px 0 0;font-size:12px;color:#6b7280;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">Reservasi lebih mudah,<br/>antrean jadi lebih baik.</p>
 </td>
-<td width="30%%" valign="top" align="center">
-<p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#374151;">Temukan kami</p>
-%s
-</td>
-<td width="30%%" valign="top" align="right">
-<a href="%s" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;font-size:12px;font-weight:600;padding:8px 16px;border-radius:8px;">Kunjungi %s →</a>
+<td valign="top" align="right">
+<p style="margin:0 0 8px;font-size:12px;font-weight:700;color:#374151;font-family:Arial,Helvetica,sans-serif;text-align:right;">Info lebih lanjut</p>
+<a href="%s" style="display:inline-block;background:#7c3aed;color:#fff;text-decoration:none;font-size:12px;font-weight:600;padding:10px 16px;border-radius:10px;font-family:Arial,Helvetica,sans-serif;">Kunjungi web ke wayt.fun &#8594;</a>
 </td>
 </tr>
 </table>
-<table width="100%%" cellpadding="0" cellspacing="0" style="margin-top:20px;padding-top:20px;border-top:1px solid #e5e7eb;">
+%s
+<table width="100%%" cellpadding="0" cellspacing="0" style="margin-top:20px;padding-top:16px;border-top:1px solid #e5e7eb;">
 <tr>
 <td valign="middle">
-<span style="font-size:12px;color:#6b7280;">🎧 Butuh bantuan? Tim Wayt siap membantu.</span>
+<span style="font-size:12px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;">Butuh bantuan? Tim Wayt siap membantu Anda.</span>
 </td>
 <td align="right" valign="middle">
-<a href="mailto:%s" style="font-size:12px;color:#7c3aed;text-decoration:none;">✉ %s</a>
+<a href="mailto:%s" style="font-size:12px;color:#7c3aed;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">%s</a>
 </td>
 </tr>
 </table>
-<p style="margin:16px 0 0;font-size:11px;color:#9ca3af;text-align:center;">%s<br/>%s</p>
-</td></tr>`, logoHTML, socialSection, websiteURL, websiteURL, supportEmail, supportEmail, footerNote, copyright)
+<p style="margin:16px 0 0;font-size:11px;color:#9ca3af;text-align:center;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">%s<br/>%s</p>
+</td></tr>`, logoHTML, websiteURL, socialSection, supportEmail, supportEmail, footerNote, copyright)
 }
