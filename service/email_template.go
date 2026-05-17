@@ -130,7 +130,7 @@ func buildProfileSection(restaurantLogoURL, restaurantName string) string {
 }
 
 func socialIconCell(url, label string) string {
-	return fmt.Sprintf(`<td style="padding:0 5px;"><a href="%s" target="_blank" style="display:inline-block;width:40px;height:40px;line-height:40px;border-radius:20px;background:#7c3aed;text-align:center;text-decoration:none;font-size:11px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">%s</a></td>`, url, label)
+	return fmt.Sprintf(`<td style="padding:0 4px;"><a href="%s" target="_blank" style="display:inline-block;width:32px;height:32px;line-height:32px;border-radius:16px;background:#7c3aed;text-align:center;text-decoration:none;font-size:10px;font-weight:700;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">%s</a></td>`, url, label)
 }
 
 func buildEmailFooter(logoURL, instagramURL, facebookURL, tiktokURL, websiteURL, supportEmail, footerNote, copyright, footerBgURL string) string {
@@ -168,35 +168,35 @@ func buildEmailFooter(logoURL, instagramURL, facebookURL, tiktokURL, websiteURL,
 	return fmt.Sprintf(`<tr><td%s style="%s">
 <table width="100%%" cellpadding="0" cellspacing="0">
 <tr>
-<td valign="top" style="padding:28px 20px 28px 32px;border-right:1px solid rgba(0,0,0,0.08);">
+<td valign="top" style="padding:20px 16px 20px 24px;border-right:1px solid rgba(0,0,0,0.08);">
 %s
-<p style="margin:12px 0 0;font-size:14px;color:#374151;line-height:1.7;font-family:Arial,Helvetica,sans-serif;">Reservasi lebih mudah,<br/>antrean jadi lebih baik.</p>
+<p style="margin:8px 0 0;font-size:11px;color:#3b0764;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">Reservasi lebih mudah,<br/>antrean jadi lebih baik.</p>
 </td>
-<td align="center" valign="top" style="padding:28px 16px;border-right:1px solid rgba(0,0,0,0.08);">
-<p style="margin:0 0 14px;font-size:13px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">Temukan kami</p>
+<td align="center" valign="top" style="padding:20px 12px;border-right:1px solid rgba(0,0,0,0.08);">
+<p style="margin:0 0 10px;font-size:11px;font-weight:700;color:#3b0764;font-family:Arial,Helvetica,sans-serif;">Temukan kami</p>
 %s
 </td>
-<td valign="top" style="padding:28px 32px 28px 20px;">
-<p style="margin:0 0 12px;font-size:13px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">Info lebih lanjut tentang Wayt</p>
-<a href="%s" style="display:block;background:#7c3aed;color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:12px 16px;border-radius:10px;text-align:center;font-family:Arial,Helvetica,sans-serif;">Kunjungi web ke wayt.fun &#8594;</a>
+<td valign="top" style="padding:20px 24px 20px 16px;">
+<p style="margin:0 0 8px;font-size:11px;font-weight:700;color:#3b0764;font-family:Arial,Helvetica,sans-serif;">Info lebih lanjut tentang Wayt</p>
+<a href="%s" style="display:block;background:#7c3aed;color:#fff;text-decoration:none;font-size:11px;font-weight:600;padding:10px 14px;border-radius:10px;text-align:center;font-family:Arial,Helvetica,sans-serif;">Kunjungi web ke wayt.fun &#8594;</a>
 </td>
 </tr>
 </table>
 <table width="100%%" cellpadding="0" cellspacing="0" style="border-top:1px solid rgba(0,0,0,0.08);">
 <tr>
-<td style="padding:24px 32px 20px;">
-<table width="100%%" cellpadding="0" cellspacing="0" style="padding-bottom:16px;margin-bottom:12px;border-bottom:1px solid rgba(0,0,0,0.08);">
+<td style="padding:16px 24px 16px;">
+<table width="100%%" cellpadding="0" cellspacing="0" style="padding-bottom:12px;margin-bottom:10px;border-bottom:1px solid rgba(0,0,0,0.08);">
 <tr>
 <td valign="middle" style="padding-right:12px;">
-<span style="font-size:14px;font-weight:700;color:#7c3aed;font-family:Arial,Helvetica,sans-serif;">Butuh bantuan?</span><br/>
-<span style="font-size:13px;color:#374151;font-family:Arial,Helvetica,sans-serif;">Tim Wayt siap membantu Anda.</span>
+<span style="font-size:12px;font-weight:700;color:#7c3aed;font-family:Arial,Helvetica,sans-serif;">Butuh bantuan?</span><br/>
+<span style="font-size:11px;color:#3b0764;font-family:Arial,Helvetica,sans-serif;">Tim Wayt siap membantu Anda.</span>
 </td>
 <td valign="middle" align="right" style="border-left:1px solid rgba(0,0,0,0.08);padding-left:12px;white-space:nowrap;">
-<a href="mailto:%s" style="font-size:13px;color:#374151;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">%s</a>
+<a href="mailto:%s" style="font-size:11px;color:#3b0764;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">%s</a>
 </td>
 </tr>
 </table>
-<p style="margin:0;font-size:11px;color:#9ca3af;text-align:center;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">%s<br/>%s</p>
+<p style="margin:0;font-size:10px;color:#4c1d95;text-align:center;font-family:Arial,Helvetica,sans-serif;line-height:1.6;">%s<br/>%s</p>
 </td>
 </tr>
 </table>
