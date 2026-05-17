@@ -157,22 +157,22 @@ func buildEmailFooter(logoURL, instagramURL, facebookURL, tiktokURL, websiteURL,
 		socialRow = fmt.Sprintf(`<table cellpadding="0" cellspacing="0" align="center" style="margin:0 auto;"><tr>%s</tr></table>`, socialCells)
 	}
 
-	// Bottom section: use footer background image if provided, else plain white
-	bgAttr := ""
-	bgStyle := "background:#ffffff;"
+	// Apply background to the entire footer outer td
+	outerBgAttr := ""
+	outerBgStyle := "background:#ffffff;padding:0;border-top:1px solid #e5e7eb;"
 	if footerBgURL != "" {
-		bgAttr = fmt.Sprintf(` background="%s"`, footerBgURL)
-		bgStyle = fmt.Sprintf(`background:#ffffff url('%s') no-repeat center bottom;background-size:cover;`, footerBgURL)
+		outerBgAttr = fmt.Sprintf(` background="%s"`, footerBgURL)
+		outerBgStyle = fmt.Sprintf(`background:#ffffff url('%s') no-repeat left bottom;background-size:cover;padding:0;border-top:1px solid #e5e7eb;`, footerBgURL)
 	}
 
-	return fmt.Sprintf(`<tr><td style="background:#ffffff;padding:0;border-top:1px solid #e5e7eb;">
+	return fmt.Sprintf(`<tr><td%s style="%s">
 <table width="100%%" cellpadding="0" cellspacing="0">
 <tr>
-<td valign="top" style="padding:28px 20px 28px 32px;border-right:1px solid #e5e7eb;">
+<td valign="top" style="padding:28px 20px 28px 32px;border-right:1px solid rgba(0,0,0,0.08);">
 %s
 <p style="margin:12px 0 0;font-size:14px;color:#374151;line-height:1.7;font-family:Arial,Helvetica,sans-serif;">Reservasi lebih mudah,<br/>antrean jadi lebih baik.</p>
 </td>
-<td align="center" valign="top" style="padding:28px 16px;border-right:1px solid #e5e7eb;">
+<td align="center" valign="top" style="padding:28px 16px;border-right:1px solid rgba(0,0,0,0.08);">
 <p style="margin:0 0 14px;font-size:13px;font-weight:700;color:#111827;font-family:Arial,Helvetica,sans-serif;">Temukan kami</p>
 %s
 </td>
@@ -182,9 +182,9 @@ func buildEmailFooter(logoURL, instagramURL, facebookURL, tiktokURL, websiteURL,
 </td>
 </tr>
 </table>
-<table width="100%%" cellpadding="0" cellspacing="0" style="border-top:1px solid #e5e7eb;">
+<table width="100%%" cellpadding="0" cellspacing="0" style="border-top:1px solid rgba(0,0,0,0.08);">
 <tr>
-<td%s style="%s padding:24px 32px 20px;">
+<td style="padding:24px 32px 20px;">
 <table width="100%%" cellpadding="0" cellspacing="0" style="padding-bottom:16px;margin-bottom:12px;border-bottom:1px solid rgba(0,0,0,0.08);">
 <tr>
 <td valign="middle" style="padding-right:12px;">
@@ -201,8 +201,8 @@ func buildEmailFooter(logoURL, instagramURL, facebookURL, tiktokURL, websiteURL,
 </tr>
 </table>
 </td></tr>`,
+		outerBgAttr, outerBgStyle,
 		logoHTML, socialRow, websiteURL,
-		bgAttr, bgStyle,
 		supportEmail, supportEmail,
 		footerNote, copyright)
 }
