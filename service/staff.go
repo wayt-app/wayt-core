@@ -28,7 +28,7 @@ type StaffService interface {
 	Login(emailAddr, password string) (string, error)
 	List(ownerID uint) ([]model.Staff, error)
 	FindByID(id uint) (*model.Staff, error)
-	Update(id, ownerID uint, name string, isActive bool) (*model.Staff, error)
+	Update(id, ownerID uint, name string, isActive *bool) (*model.Staff, error)
 	Delete(id, ownerID uint) error
 	ChangePassword(id uint, currentPassword, newPassword string) error
 	ForgotPassword(emailAddr string) error
@@ -144,7 +144,7 @@ func (s *staffService) FindByID(id uint) (*model.Staff, error) {
 	return st, nil
 }
 
-func (s *staffService) Update(id, ownerID uint, name string, isActive bool) (*model.Staff, error) {
+func (s *staffService) Update(id, ownerID uint, name string, isActive *bool) (*model.Staff, error) {
 	st, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, errors.New("staff tidak ditemukan")
@@ -155,7 +155,9 @@ func (s *staffService) Update(id, ownerID uint, name string, isActive bool) (*mo
 	if name != "" {
 		st.Name = name
 	}
-	st.IsActive = isActive
+	if isActive != nil {
+		st.IsActive = *isActive
+	}
 	if err := s.repo.Update(st); err != nil {
 		return nil, fmt.Errorf("gagal update staff: %w", err)
 	}

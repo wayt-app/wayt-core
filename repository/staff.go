@@ -58,8 +58,7 @@ func (r *staffRepository) Update(s *model.Staff) error {
 }
 
 func (r *staffRepository) Delete(id uint) error {
-	return r.db.Model(&model.Staff{}).Where("id = ?", id).
-		Updates(map[string]interface{}{"is_active": false, "updated_at": time.Now()}).Error
+	return r.db.Where("id = ?", id).Delete(&model.Staff{}).Error
 }
 
 func (r *staffRepository) UpdatePassword(id uint, hashedPassword string) error {

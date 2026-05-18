@@ -402,7 +402,7 @@ func (s *bookingService) Cancel(id uint, customerID uint, reason string) error {
 	go s.sendBookingNotif(b, "cancelled")
 	go s.sendBookingEmail(b, "cancelled")
 	// Trigger auto-promote for waiting list
-	if b.Status == model.BookingStatusPending || b.Status == model.BookingStatusConfirmed {
+	if b.Status == model.BookingStatusPending || b.Status == model.BookingStatusConfirmed || b.Status == model.BookingStatusCheckedIn {
 		_ = s.autoPromote(b)
 	}
 	return nil
@@ -490,7 +490,7 @@ func (s *bookingService) AdminCancel(id uint, reason string) error {
 	go s.sendBookingNotif(b, "cancelled")
 	go s.sendBookingEmail(b, "cancelled")
 	go s.sendInAppNotif(b, "cancelled")
-	if b.Status == model.BookingStatusPending || b.Status == model.BookingStatusConfirmed {
+	if b.Status == model.BookingStatusPending || b.Status == model.BookingStatusConfirmed || b.Status == model.BookingStatusCheckedIn {
 		_ = s.autoPromote(b)
 	}
 	return nil

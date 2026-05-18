@@ -113,10 +113,20 @@ func (s *slotService) GetSlots(branchID uint, dateStr string, guests int) ([]Slo
 			continue
 		}
 
-		// Compute booked tables per table_type_id for this slot from in-memory bookings
+		// Compute booked tables per table_type_id for this slot from in-memory bookings.
+		// DB returns time columns as "HH:MM:SS"; normalize to "HH:MM" before string comparison
+		// so adjacent bookings (EndTime == slot StartTime) are not incorrectly counted.
 		bookedByType := make(map[uint]int64)
 		for _, b := range activeBookings {
-			if b.StartTime < end && b.EndTime > start {
+			bStart := b.StartTime
+			if len(bStart) > 5 {
+				bStart = bStart[:5]
+			}
+			bEnd := b.EndTime
+			if len(bEnd) > 5 {
+				bEnd = bEnd[:5]
+			}
+			if bStart < end && bEnd > start {
 				bookedByType[b.TableTypeID] += int64(b.TablesCount)
 			}
 		}
