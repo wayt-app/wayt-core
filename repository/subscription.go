@@ -10,6 +10,8 @@ import (
 type SubscriptionRepository interface {
 	Create(s *model.Subscription) error
 	FindByOwnerID(ownerID uint) (*model.Subscription, error)
+	// FindByOwnerIDs fetches the latest subscription for each owner in one query.
+	FindByOwnerIDs(ownerIDs []uint) (map[uint]*model.Subscription, error)
 	FindByID(id uint) (*model.Subscription, error)
 	UpdateStatus(id uint, status model.SubscriptionStatus, notes string) error
 	IncrementReservations(id uint) error
@@ -40,6 +42,46 @@ func (r *subscriptionRepository) FindByOwnerID(ownerID uint) (*model.Subscriptio
 		Order("id DESC").
 		First(&s).Error
 	return &s, err
+}
+
+func (r *subscriptionRepository) FindByOwnerIDs(ownerIDs []uint) (map[uint]*model.Subscription, error) {
+	if len(ownerIDs) == 0 {
+		return map[uint]*model.Subscription{}, nil
+	}
+	// DISTINCT ON business_owner_id picks the latest subscription (ORDER BY id DESC) per owner.
+	var subs []model.Subscription
+	err := r.db.Raw(`
+		SELECT DISTINCT ON (business_owner_id) *
+		FROM tabl_subscriptions
+		WHERE business_owner_id IN ?
+		ORDER BY business_owner_id, id DESC
+	`, ownerIDs).Scan(&subs).Error
+	if err != nil {
+		return nil, err
+	}
+	// Collect plan IDs to batch-preload plans
+	planIDs := make([]uint, 0, len(subs))
+	for _, s := range subs {
+		if s.PlanID != 0 {
+			planIDs = append(planIDs, s.PlanID)
+		}
+	}
+	planMap := map[uint]*model.Plan{}
+	if len(planIDs) > 0 {
+		var plans []model.Plan
+		if err := r.db.Where("id IN ?", planIDs).Find(&plans).Error; err == nil {
+			for i := range plans {
+				planMap[plans[i].ID] = &plans[i]
+			}
+		}
+	}
+	result := make(map[uint]*model.Subscription, len(subs))
+	for i := range subs {
+		s := &subs[i]
+		s.Plan = planMap[s.PlanID]
+		result[s.BusinessOwnerID] = s
+	}
+	return result, nil
 }
 
 func (r *subscriptionRepository) FindByID(id uint) (*model.Subscription, error) {

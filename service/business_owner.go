@@ -392,13 +392,18 @@ func (s *businessOwnerService) ListWithSubscriptions() ([]ownerWithSub, error) {
 }
 
 func (s *businessOwnerService) AttachSubscriptions(owners []model.BusinessOwner) ([]ownerWithSub, error) {
+	ids := make([]uint, len(owners))
+	for i, o := range owners {
+		ids[i] = o.ID
+	}
+	subMap, err := s.subRepo.FindByOwnerIDs(ids)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]ownerWithSub, len(owners))
 	for i, o := range owners {
 		result[i] = ownerWithSub{ID: o.ID, Name: o.Name, Email: o.Email, Phone: o.Phone, IsVerified: o.IsVerified}
-		sub, err := s.subRepo.FindByOwnerID(o.ID)
-		if err == nil {
-			result[i].Subscription = sub
-		}
+		result[i].Subscription = subMap[o.ID]
 	}
 	return result, nil
 }
