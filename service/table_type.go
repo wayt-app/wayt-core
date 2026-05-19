@@ -11,7 +11,7 @@ type TableTypeService interface {
 	Create(branchID uint, name string, capacity, totalTables int, roomID *uint) (*model.TableType, error)
 	ListByBranch(branchID uint) ([]model.TableType, error)
 	FindByID(id uint) (*model.TableType, error)
-	Update(id uint, name string, capacity, totalTables int, isActive bool) (*model.TableType, error)
+	Update(id uint, name string, capacity, totalTables int, isActive bool, roomID *uint) (*model.TableType, error)
 	Delete(id uint) error
 }
 
@@ -63,7 +63,7 @@ func (s *tableTypeService) FindByID(id uint) (*model.TableType, error) {
 	return t, nil
 }
 
-func (s *tableTypeService) Update(id uint, name string, capacity, totalTables int, isActive bool) (*model.TableType, error) {
+func (s *tableTypeService) Update(id uint, name string, capacity, totalTables int, isActive bool, roomID *uint) (*model.TableType, error) {
 	t, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, errors.New("tipe meja tidak ditemukan")
@@ -78,6 +78,7 @@ func (s *tableTypeService) Update(id uint, name string, capacity, totalTables in
 		t.TotalTables = totalTables
 	}
 	t.IsActive = isActive
+	t.RoomID = roomID
 	if err := s.repo.Update(t); err != nil {
 		return nil, err
 	}
