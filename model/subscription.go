@@ -22,6 +22,7 @@ type Subscription struct {
 	ActivatedAt     *time.Time         `                                json:"activated_at"`
 	Notes           string             `gorm:"type:text"                json:"notes"`
 	ReservationsThisMonth int          `gorm:"not null;default:0"       json:"reservations_this_month"`
+	CampaignsThisMonth    int          `gorm:"not null;default:0"       json:"campaigns_this_month"`
 	LastResetAt     time.Time          `gorm:"type:date;not null"       json:"last_reset_at"`
 	WarningSent     bool               `gorm:"not null;default:false"   json:"warning_sent"`
 	CreatedAt       time.Time          `                                json:"created_at"`

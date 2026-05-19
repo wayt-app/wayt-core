@@ -9,6 +9,7 @@ type Plan struct {
 	MaxReservationsPerMonth  int       `gorm:"not null;default:15"      json:"max_reservations_per_month"`
 	WaNotifEnabled           bool      `gorm:"not null;default:false"   json:"wa_notif_enabled"`
 	WarningThresholdPct      int       `gorm:"not null;default:80"      json:"warning_threshold_pct"`
+	MaxCampaignsPerMonth     int       `gorm:"not null;default:0"       json:"max_campaigns_per_month"`
 	Price                    float64   `gorm:"type:numeric(12,2);not null;default:0" json:"price"`
 	IsActive                 bool      `gorm:"not null;default:true"    json:"is_active"`
 	CreatedAt                time.Time `                                json:"created_at"`

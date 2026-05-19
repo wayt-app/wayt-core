@@ -13,6 +13,7 @@ type SubscriptionRepository interface {
 	FindByID(id uint) (*model.Subscription, error)
 	UpdateStatus(id uint, status model.SubscriptionStatus, notes string) error
 	IncrementReservations(id uint) error
+	IncrementCampaigns(id uint) error
 	ResetMonthlyCount(id uint) error
 	FindTrialExpiring(within time.Duration) ([]model.Subscription, error)
 	FindTrialExpired() ([]model.Subscription, error)
@@ -65,6 +66,13 @@ func (r *subscriptionRepository) UpdateStatus(id uint, status model.Subscription
 func (r *subscriptionRepository) IncrementReservations(id uint) error {
 	return r.db.Exec(
 		"UPDATE tabl_subscriptions SET reservations_this_month = reservations_this_month + 1, updated_at = NOW() WHERE id = ?",
+		id,
+	).Error
+}
+
+func (r *subscriptionRepository) IncrementCampaigns(id uint) error {
+	return r.db.Exec(
+		"UPDATE tabl_subscriptions SET campaigns_this_month = campaigns_this_month + 1, updated_at = NOW() WHERE id = ?",
 		id,
 	).Error
 }
