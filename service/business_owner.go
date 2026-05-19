@@ -33,6 +33,7 @@ type BusinessOwnerService interface {
 	List() ([]model.BusinessOwner, error)
 	ListPaged(search string, page, limit int) ([]model.BusinessOwner, int64, error)
 	ListWithSubscriptions() ([]ownerWithSub, error)
+	AttachSubscriptions(owners []model.BusinessOwner) ([]ownerWithSub, error)
 	AdminApprove(subscriptionID uint, planID uint) error
 	AdminReject(subscriptionID uint, notes string) error
 	AdminAssignPlan(ownerID uint, planID uint) error
@@ -387,14 +388,17 @@ func (s *businessOwnerService) ListWithSubscriptions() ([]ownerWithSub, error) {
 	if err != nil {
 		return nil, err
 	}
-	var result []ownerWithSub
-	for _, o := range owners {
-		item := ownerWithSub{ID: o.ID, Name: o.Name, Email: o.Email, Phone: o.Phone, IsVerified: o.IsVerified}
+	return s.AttachSubscriptions(owners)
+}
+
+func (s *businessOwnerService) AttachSubscriptions(owners []model.BusinessOwner) ([]ownerWithSub, error) {
+	result := make([]ownerWithSub, len(owners))
+	for i, o := range owners {
+		result[i] = ownerWithSub{ID: o.ID, Name: o.Name, Email: o.Email, Phone: o.Phone, IsVerified: o.IsVerified}
 		sub, err := s.subRepo.FindByOwnerID(o.ID)
 		if err == nil {
-			item.Subscription = sub
+			result[i].Subscription = sub
 		}
-		result = append(result, item)
 	}
 	return result, nil
 }
