@@ -231,7 +231,7 @@ func (r *bookingRepository) MarkOverLimitByOwner(ownerID uint, limit int) error 
 			)
 			AND status IN ('pending','confirmed','waiting_list')
 			AND DATE_TRUNC('month', booking_date::timestamp) = DATE_TRUNC('month', NOW())
-			ORDER BY created_at ASC
+			ORDER BY created_at ASC, id ASC
 			OFFSET ?
 		)`, ownerID, limit).Error
 }
