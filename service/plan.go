@@ -8,10 +8,10 @@ import (
 )
 
 type PlanService interface {
-	Create(name string, maxBranches, maxReservationsPerMonth int, waNotifEnabled bool, warningThresholdPct int, price float64) (*model.Plan, error)
+	Create(name string, maxBranches, maxReservationsPerMonth, maxCampaignsPerMonth int, waNotifEnabled bool, warningThresholdPct int, price float64) (*model.Plan, error)
 	FindByID(id uint) (*model.Plan, error)
 	List() ([]model.Plan, error)
-	Update(id uint, name string, maxBranches, maxReservationsPerMonth int, waNotifEnabled bool, warningThresholdPct int, price float64, isActive bool) (*model.Plan, error)
+	Update(id uint, name string, maxBranches, maxReservationsPerMonth, maxCampaignsPerMonth int, waNotifEnabled bool, warningThresholdPct int, price float64, isActive bool) (*model.Plan, error)
 	Delete(id uint) error
 }
 
@@ -23,7 +23,7 @@ func NewPlanService(repo repository.PlanRepository) PlanService {
 	return &planService{repo: repo}
 }
 
-func (s *planService) Create(name string, maxBranches, maxReservationsPerMonth int, waNotifEnabled bool, warningThresholdPct int, price float64) (*model.Plan, error) {
+func (s *planService) Create(name string, maxBranches, maxReservationsPerMonth, maxCampaignsPerMonth int, waNotifEnabled bool, warningThresholdPct int, price float64) (*model.Plan, error) {
 	if name == "" {
 		return nil, errors.New("nama paket wajib diisi")
 	}
@@ -31,6 +31,7 @@ func (s *planService) Create(name string, maxBranches, maxReservationsPerMonth i
 		Name:                    name,
 		MaxBranches:             maxBranches,
 		MaxReservationsPerMonth: maxReservationsPerMonth,
+		MaxCampaignsPerMonth:    maxCampaignsPerMonth,
 		WaNotifEnabled:          waNotifEnabled,
 		WarningThresholdPct:     warningThresholdPct,
 		Price:                   price,
@@ -54,7 +55,7 @@ func (s *planService) List() ([]model.Plan, error) {
 	return s.repo.List()
 }
 
-func (s *planService) Update(id uint, name string, maxBranches, maxReservationsPerMonth int, waNotifEnabled bool, warningThresholdPct int, price float64, isActive bool) (*model.Plan, error) {
+func (s *planService) Update(id uint, name string, maxBranches, maxReservationsPerMonth, maxCampaignsPerMonth int, waNotifEnabled bool, warningThresholdPct int, price float64, isActive bool) (*model.Plan, error) {
 	p, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, errors.New("paket tidak ditemukan")
@@ -64,6 +65,7 @@ func (s *planService) Update(id uint, name string, maxBranches, maxReservationsP
 	}
 	p.MaxBranches = maxBranches
 	p.MaxReservationsPerMonth = maxReservationsPerMonth
+	p.MaxCampaignsPerMonth = maxCampaignsPerMonth
 	p.WaNotifEnabled = waNotifEnabled
 	p.WarningThresholdPct = warningThresholdPct
 	p.Price = price
