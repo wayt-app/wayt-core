@@ -46,19 +46,18 @@ func (r *restaurantRepository) FindAllActiveWithBranchCoords() ([]model.Restaura
 	var list []model.RestaurantWithCoords
 	err := r.db.Raw(`
 		SELECT r.*,
-			COALESCE((
-				SELECT b.latitude FROM tabl_branches b
-				WHERE b.restaurant_id = r.id AND b.is_active = true
-				  AND b.deleted_at IS NULL AND b.latitude <> 0
-				LIMIT 1
-			), 0) AS nearest_lat,
-			COALESCE((
-				SELECT b.longitude FROM tabl_branches b
-				WHERE b.restaurant_id = r.id AND b.is_active = true
-				  AND b.deleted_at IS NULL AND b.latitude <> 0
-				LIMIT 1
-			), 0) AS nearest_lng
+			COALESCE(b.latitude,  0) AS nearest_lat,
+			COALESCE(b.longitude, 0) AS nearest_lng
 		FROM tabl_restaurants r
+		LEFT JOIN LATERAL (
+			SELECT latitude, longitude
+			FROM tabl_branches
+			WHERE restaurant_id = r.id
+			  AND is_active = true
+			  AND deleted_at IS NULL
+			  AND latitude <> 0
+			LIMIT 1
+		) b ON true
 		WHERE r.deleted_at IS NULL AND r.is_active = true
 		ORDER BY r.name ASC
 	`).Scan(&list).Error
