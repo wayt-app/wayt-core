@@ -8,7 +8,7 @@ import (
 )
 
 type TableTypeService interface {
-	Create(branchID uint, name string, capacity, totalTables int) (*model.TableType, error)
+	Create(branchID uint, name string, capacity, totalTables int, roomID *uint) (*model.TableType, error)
 	ListByBranch(branchID uint) ([]model.TableType, error)
 	FindByID(id uint) (*model.TableType, error)
 	Update(id uint, name string, capacity, totalTables int, isActive bool) (*model.TableType, error)
@@ -24,7 +24,7 @@ func NewTableTypeService(repo repository.TableTypeRepository, branchRepo reposit
 	return &tableTypeService{repo: repo, branchRepo: branchRepo}
 }
 
-func (s *tableTypeService) Create(branchID uint, name string, capacity, totalTables int) (*model.TableType, error) {
+func (s *tableTypeService) Create(branchID uint, name string, capacity, totalTables int, roomID *uint) (*model.TableType, error) {
 	if name == "" {
 		return nil, errors.New("nama tipe meja wajib diisi")
 	}
@@ -39,6 +39,7 @@ func (s *tableTypeService) Create(branchID uint, name string, capacity, totalTab
 	}
 	t := &model.TableType{
 		BranchID:    branchID,
+		RoomID:      roomID,
 		Name:        name,
 		Capacity:    capacity,
 		TotalTables: totalTables,

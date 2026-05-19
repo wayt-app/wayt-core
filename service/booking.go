@@ -82,7 +82,7 @@ type CustomerSummary struct {
 }
 
 type BookingService interface {
-	CheckAvailability(branchID uint, dateStr, startTime string, guests int) ([]AvailabilityResult, error)
+	CheckAvailability(branchID uint, dateStr, startTime string, guests int, roomID *uint) ([]AvailabilityResult, error)
 	Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes, menuOrder, source, guestEmail string) (*model.Booking, error)
 	MyBookings(customerID uint) ([]model.Booking, error)
 	GetByID(id uint) (*model.Booking, error)
@@ -166,7 +166,7 @@ func NewBookingService(
 	}
 }
 
-func (s *bookingService) CheckAvailability(branchID uint, dateStr, startTime string, guests int) ([]AvailabilityResult, error) {
+func (s *bookingService) CheckAvailability(branchID uint, dateStr, startTime string, guests int, roomID *uint) ([]AvailabilityResult, error) {
 	branch, err := s.branchRepo.FindByID(branchID)
 	if err != nil {
 		return nil, errors.New("cabang tidak ditemukan")
@@ -187,7 +187,7 @@ func (s *bookingService) CheckAvailability(branchID uint, dateStr, startTime str
 	}
 
 	endTime := addMinutes(startTime, branch.DefaultDurationMinutes)
-	tableTypes, err := s.tableTypeRepo.FindByBranch(branchID)
+	tableTypes, err := s.tableTypeRepo.FindByBranchAndRoom(branchID, roomID)
 	if err != nil {
 		return nil, err
 	}
@@ -310,6 +310,7 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 		CustomerID:  customerID,
 		BranchID:    branchID,
 		TableTypeID: tableTypeID,
+		RoomID:      tt.RoomID,
 		BookingDate: date,
 		StartTime:   startTime,
 		EndTime:     endTime,

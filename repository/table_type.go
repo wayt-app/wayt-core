@@ -8,6 +8,10 @@ import (
 type TableTypeRepository interface {
 	Create(t *model.TableType) error
 	FindByBranch(branchID uint) ([]model.TableType, error)
+	// FindByBranchAndRoom returns active table types for a branch filtered by room.
+	// roomID == nil → only table types with room_id IS NULL (default/single-room).
+	// roomID != nil → only table types with room_id = *roomID.
+	FindByBranchAndRoom(branchID uint, roomID *uint) ([]model.TableType, error)
 	FindByID(id uint) (*model.TableType, error)
 	Update(t *model.TableType) error
 	Delete(id uint) error
@@ -27,6 +31,18 @@ func (r *tableTypeRepository) FindByBranch(branchID uint) ([]model.TableType, er
 	var list []model.TableType
 	err := r.db.Where("branch_id = ? AND deleted_at IS NULL", branchID).
 		Order("id ASC").Find(&list).Error
+	return list, err
+}
+
+func (r *tableTypeRepository) FindByBranchAndRoom(branchID uint, roomID *uint) ([]model.TableType, error) {
+	var list []model.TableType
+	q := r.db.Where("branch_id = ? AND deleted_at IS NULL", branchID)
+	if roomID == nil {
+		q = q.Where("room_id IS NULL")
+	} else {
+		q = q.Where("room_id = ?", *roomID)
+	}
+	err := q.Order("id ASC").Find(&list).Error
 	return list, err
 }
 

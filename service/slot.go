@@ -28,7 +28,7 @@ type SlotResult struct {
 }
 
 type SlotService interface {
-	GetSlots(branchID uint, dateStr string, guests int) ([]SlotResult, error)
+	GetSlots(branchID uint, dateStr string, guests int, roomID *uint) ([]SlotResult, error)
 }
 
 type slotService struct {
@@ -49,7 +49,7 @@ func NewSlotService(
 	}
 }
 
-func (s *slotService) GetSlots(branchID uint, dateStr string, guests int) ([]SlotResult, error) {
+func (s *slotService) GetSlots(branchID uint, dateStr string, guests int, roomID *uint) ([]SlotResult, error) {
 	branch, err := s.branchRepo.FindByID(branchID)
 	if err != nil {
 		return nil, errors.New("cabang tidak ditemukan")
@@ -86,7 +86,7 @@ func (s *slotService) GetSlots(branchID uint, dateStr string, guests int) ([]Slo
 		return nil, errors.New("tidak ada slot tersedia untuk jam operasional yang diatur")
 	}
 
-	tableTypes, err := s.tableTypeRepo.FindByBranch(branchID)
+	tableTypes, err := s.tableTypeRepo.FindByBranchAndRoom(branchID, roomID)
 	if err != nil {
 		return nil, err
 	}
