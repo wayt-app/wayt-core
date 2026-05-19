@@ -357,17 +357,33 @@ func bookingOrderClause(col, dir, tablePrefix string) string {
 }
 
 func (r *bookingRepository) FindByCustomerPaged(customerID uint, sortBy, sortDir string, offset, limit int) ([]model.Booking, int64, error) {
-	var list []model.Booking
-	var total int64
-	q := r.db.Model(&model.Booking{}).Where("customer_id = ?", customerID)
-	if err := q.Count(&total).Error; err != nil {
+	type row struct {
+		model.Booking
+		TotalCount int64 `gorm:"column:total_count"`
+	}
+	order := bookingOrderClause(sortBy, sortDir, "")
+	var rows []row
+	if err := r.db.Raw(
+		"SELECT *, count(*) OVER() AS total_count FROM tabl_bookings WHERE customer_id = ? ORDER BY "+order+" LIMIT ? OFFSET ?",
+		customerID, limit, offset,
+	).Scan(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	err := r.db.Preload("Branch").Preload("Branch.Restaurant").Preload("TableType").
-		Where("customer_id = ?", customerID).
-		Order(bookingOrderClause(sortBy, sortDir, "")).
-		Offset(offset).Limit(limit).Find(&list).Error
-	return list, total, err
+	if len(rows) == 0 {
+		return nil, 0, nil
+	}
+	total := rows[0].TotalCount
+	ids := make([]uint, len(rows))
+	list := make([]model.Booking, len(rows))
+	for i, rw := range rows {
+		list[i] = rw.Booking
+		ids[i] = rw.ID
+	}
+	if err := r.db.Preload("Branch").Preload("Branch.Restaurant").Preload("TableType").
+		Where("id IN ?", ids).Order(order).Find(&list).Error; err != nil {
+		return nil, 0, err
+	}
+	return list, total, nil
 }
 
 func (r *bookingRepository) FindByBranchPaged(branchID uint, date *time.Time, status *model.BookingStatus, search, sortBy, sortDir string, offset, limit int) ([]model.Booking, int64, error) {
