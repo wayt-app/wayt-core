@@ -31,6 +31,7 @@ type BusinessOwnerService interface {
 	CheckBranchLimit(ownerID uint) (bool, error)
 	IncrementReservation(ownerID uint) error
 	List() ([]model.BusinessOwner, error)
+	ListPaged(search string, page, limit int) ([]model.BusinessOwner, int64, error)
 	ListWithSubscriptions() ([]ownerWithSub, error)
 	AdminApprove(subscriptionID uint, planID uint) error
 	AdminReject(subscriptionID uint, notes string) error
@@ -375,6 +376,10 @@ type ownerWithSub struct {
 
 func (s *businessOwnerService) List() ([]model.BusinessOwner, error) {
 	return s.repo.List()
+}
+
+func (s *businessOwnerService) ListPaged(search string, page, limit int) ([]model.BusinessOwner, int64, error) {
+	return s.repo.ListPaged(search, page, limit)
 }
 
 func (s *businessOwnerService) ListWithSubscriptions() ([]ownerWithSub, error) {

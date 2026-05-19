@@ -25,6 +25,7 @@ type CustomerService interface {
 	ChangePassword(id uint, currentPassword, newPassword string) error
 	ResetPassword(id uint, newPassword string) error
 	List() ([]model.Customer, error)
+	ListPaged(search string, page, limit int) ([]model.Customer, int64, error)
 	ForgotPassword(email string) error
 	ResetPasswordWithToken(token, newPassword string) error
 	VerifyEmail(token string) error
@@ -155,6 +156,10 @@ func (s *customerService) ResetPassword(id uint, newPassword string) error {
 
 func (s *customerService) List() ([]model.Customer, error) {
 	return s.repo.List()
+}
+
+func (s *customerService) ListPaged(search string, page, limit int) ([]model.Customer, int64, error) {
+	return s.repo.ListPaged(search, page, limit)
 }
 
 func (s *customerService) VerifyEmail(token string) error {

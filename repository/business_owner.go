@@ -19,6 +19,7 @@ type BusinessOwnerRepository interface {
 	FindByResetToken(token string) (*model.BusinessOwner, error)
 	ClearResetToken(id uint) error
 	List() ([]model.BusinessOwner, error)
+	ListPaged(search string, page, limit int) ([]model.BusinessOwner, int64, error)
 	FindByRestaurantID(restaurantID uint) (*model.BusinessOwner, error)
 	FindTokenVersion(id uint) (int, error)
 	IncrementTokenVersion(id uint) error
@@ -86,6 +87,27 @@ func (r *businessOwnerRepository) ClearResetToken(id uint) error {
 func (r *businessOwnerRepository) List() ([]model.BusinessOwner, error) {
 	var list []model.BusinessOwner
 	return list, r.db.Order("id desc").Find(&list).Error
+}
+
+func (r *businessOwnerRepository) ListPaged(search string, page, limit int) ([]model.BusinessOwner, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 200 {
+		limit = 50
+	}
+	q := r.db.Model(&model.BusinessOwner{})
+	if search != "" {
+		like := "%" + search + "%"
+		q = q.Where("name ILIKE ? OR email ILIKE ?", like, like)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.BusinessOwner
+	err := q.Order("id desc").Offset((page - 1) * limit).Limit(limit).Find(&list).Error
+	return list, total, err
 }
 
 func (r *businessOwnerRepository) FindTokenVersion(id uint) (int, error) {

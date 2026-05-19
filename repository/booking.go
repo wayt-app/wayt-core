@@ -84,7 +84,8 @@ func (r *bookingRepository) FindByCustomer(customerID uint) ([]model.Booking, er
 	var list []model.Booking
 	err := r.db.Preload("Branch").Preload("TableType").
 		Where("customer_id = ?", customerID).
-		Order("booking_date DESC, start_time DESC").Find(&list).Error
+		Order("booking_date DESC, start_time DESC").
+		Limit(100).Find(&list).Error
 	return list, err
 }
 

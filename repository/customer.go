@@ -13,6 +13,7 @@ type CustomerRepository interface {
 	FindByID(id uint) (*model.Customer, error)
 	UpdatePassword(id uint, hashedPassword string) error
 	List() ([]model.Customer, error)
+	ListPaged(search string, page, limit int) ([]model.Customer, int64, error)
 	SetResetToken(id uint, token string, expiresAt time.Time) error
 	FindByResetToken(token string) (*model.Customer, error)
 	ClearResetToken(id uint) error
@@ -55,6 +56,27 @@ func (r *customerRepository) UpdatePassword(id uint, hashedPassword string) erro
 func (r *customerRepository) List() ([]model.Customer, error) {
 	var list []model.Customer
 	return list, r.db.Order("id desc").Find(&list).Error
+}
+
+func (r *customerRepository) ListPaged(search string, page, limit int) ([]model.Customer, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 200 {
+		limit = 50
+	}
+	q := r.db.Model(&model.Customer{})
+	if search != "" {
+		like := "%" + search + "%"
+		q = q.Where("name ILIKE ? OR email ILIKE ? OR phone ILIKE ?", like, like, like)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []model.Customer
+	err := q.Order("id desc").Offset((page - 1) * limit).Limit(limit).Find(&list).Error
+	return list, total, err
 }
 
 func (r *customerRepository) SetResetToken(id uint, token string, expiresAt time.Time) error {
