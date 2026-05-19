@@ -103,6 +103,10 @@ type BookingService interface {
 	Confirm(id uint) error
 	Complete(id uint, notes string, totalBill int64) error
 	AdminCancel(id uint, reason string) error
+	// AdminUpdate edits booking date/time/guest_count/notes for active bookings.
+	AdminUpdate(id uint, dateStr, startTime, notes string, guestCount int) (*model.Booking, error)
+	// AdminChangeTableType reassigns the table type for an active booking.
+	AdminChangeTableType(bookingID, tableTypeID uint) (*model.Booking, error)
 	// MyBookingsPaged returns a paginated list of a customer's bookings.
 	MyBookingsPaged(customerID uint, sortBy, sortDir string, page, limit int) (*BookingPage, error)
 	// ProcessReminders sends H-1 reminder notifications for tomorrow's bookings.
@@ -495,6 +499,90 @@ func (s *bookingService) AdminCancel(id uint, reason string) error {
 		_ = s.autoPromote(b)
 	}
 	return nil
+}
+
+func (s *bookingService) AdminUpdate(id uint, dateStr, startTime, notes string, guestCount int) (*model.Booking, error) {
+	b, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, errors.New("booking tidak ditemukan")
+	}
+	if b.Status != model.BookingStatusPending && b.Status != model.BookingStatusConfirmed && b.Status != model.BookingStatusCheckedIn && b.Status != model.BookingStatusWaitingList {
+		return nil, errors.New("hanya booking yang aktif yang bisa diedit")
+	}
+	newDate, err := parseDate(dateStr)
+	if err != nil {
+		return nil, errors.New("format tanggal tidak valid, gunakan YYYY-MM-DD")
+	}
+	if err := validateTime(startTime); err != nil {
+		return nil, err
+	}
+	if guestCount <= 0 {
+		return nil, errors.New("jumlah tamu harus lebih dari 0")
+	}
+	branch, err := s.branchRepo.FindByID(b.BranchID)
+	if err != nil {
+		return nil, errors.New("cabang tidak ditemukan")
+	}
+	endTime := addMinutes(startTime, branch.DefaultDurationMinutes)
+	tt, err := s.tableTypeRepo.FindByID(b.TableTypeID)
+	if err != nil {
+		return nil, errors.New("tipe meja tidak ditemukan")
+	}
+	tablesCount := (guestCount + tt.Capacity - 1) / tt.Capacity
+	if tablesCount > tt.TotalTables {
+		return nil, fmt.Errorf("jumlah tamu terlalu besar untuk tipe meja ini (maks %d orang)", tt.TotalTables*tt.Capacity)
+	}
+	booked, err := s.repo.CountOverlapping(b.TableTypeID, newDate, startTime, endTime, id)
+	if err != nil {
+		return nil, err
+	}
+	if booked+int64(tablesCount) > int64(tt.TotalTables) {
+		return nil, errors.New("slot yang dipilih sudah penuh")
+	}
+	if err := s.repo.UpdateDetails(id, newDate, startTime, endTime, guestCount, notes); err != nil {
+		return nil, err
+	}
+	return s.repo.FindByID(id)
+}
+
+func (s *bookingService) AdminChangeTableType(bookingID, tableTypeID uint) (*model.Booking, error) {
+	b, err := s.repo.FindByID(bookingID)
+	if err != nil {
+		return nil, errors.New("booking tidak ditemukan")
+	}
+	if b.Status != model.BookingStatusPending && b.Status != model.BookingStatusConfirmed && b.Status != model.BookingStatusCheckedIn && b.Status != model.BookingStatusWaitingList {
+		return nil, errors.New("hanya booking yang aktif yang bisa diubah mejanya")
+	}
+	tt, err := s.tableTypeRepo.FindByID(tableTypeID)
+	if err != nil {
+		return nil, errors.New("tipe meja tidak ditemukan")
+	}
+	if tt.BranchID != b.BranchID {
+		return nil, errors.New("tipe meja tidak tersedia di cabang ini")
+	}
+	if !tt.IsActive {
+		return nil, errors.New("tipe meja tidak aktif")
+	}
+	tablesCount := (b.GuestCount + tt.Capacity - 1) / tt.Capacity
+	if tablesCount > tt.TotalTables {
+		return nil, fmt.Errorf("kapasitas tipe meja tidak cukup untuk %d tamu (maks %d orang)", b.GuestCount, tt.TotalTables*tt.Capacity)
+	}
+	branch, err := s.branchRepo.FindByID(b.BranchID)
+	if err != nil {
+		return nil, errors.New("cabang tidak ditemukan")
+	}
+	endTime := addMinutes(b.StartTime, branch.DefaultDurationMinutes)
+	booked, err := s.repo.CountOverlapping(tableTypeID, b.BookingDate, b.StartTime, endTime, bookingID)
+	if err != nil {
+		return nil, err
+	}
+	if booked+int64(tablesCount) > int64(tt.TotalTables) {
+		return nil, errors.New("tipe meja yang dipilih sudah penuh di slot ini")
+	}
+	if err := s.repo.UpdateTableType(bookingID, tableTypeID); err != nil {
+		return nil, err
+	}
+	return s.repo.FindByID(bookingID)
 }
 
 // ProcessNoShows marks confirmed bookings as no_show if they started more than 15 minutes ago,

@@ -32,6 +32,8 @@ type BookingRepository interface {
 	CountOverlappingByTableType(branchID uint, date time.Time, startTime, endTime string) (map[uint]int64, error)
 	// UpdateSchedule atomically updates booking_date, start_time, end_time, and status.
 	UpdateSchedule(id uint, date time.Time, startTime, endTime string, status model.BookingStatus) error
+	// UpdateDetails atomically updates booking_date, start_time, end_time, guest_count, and notes.
+	UpdateDetails(id uint, date time.Time, startTime, endTime string, guestCount int, notes string) error
 	// FindReminderCandidates returns pending/confirmed bookings scheduled for tomorrow
 	// whose reminder has not been sent yet.
 	FindReminderCandidates() ([]model.Booking, error)
@@ -306,6 +308,17 @@ func (r *bookingRepository) UpdateSchedule(id uint, date time.Time, startTime, e
 			"start_time":   startTime,
 			"end_time":     endTime,
 			"status":       status,
+		}).Error
+}
+
+func (r *bookingRepository) UpdateDetails(id uint, date time.Time, startTime, endTime string, guestCount int, notes string) error {
+	return r.db.Model(&model.Booking{}).Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"booking_date": date,
+			"start_time":   startTime,
+			"end_time":     endTime,
+			"guest_count":  guestCount,
+			"notes":        notes,
 		}).Error
 }
 
