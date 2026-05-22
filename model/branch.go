@@ -20,6 +20,7 @@ type Branch struct {
 	BankName               string     `gorm:"size:100;not null;default:''" json:"bank_name"`
 	BankAccountNumber      string     `gorm:"size:50;not null;default:''"  json:"bank_account_number"`
 	BankAccountName        string     `gorm:"size:100;not null;default:''" json:"bank_account_name"`
+	QRISImageURL           string     `gorm:"size:500;not null;default:''" json:"qris_image_url"`
 	Latitude               float64    `gorm:"default:0"                json:"latitude"`
 	Longitude              float64    `gorm:"default:0"                json:"longitude"`
 	CreatedAt              time.Time  `                                json:"created_at"`

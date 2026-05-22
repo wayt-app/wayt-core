@@ -12,7 +12,9 @@ type BranchService interface {
 	ListByRestaurant(restaurantID uint) ([]model.Branch, error)
 	ListActiveByRestaurant(restaurantID uint) ([]model.Branch, error)
 	FindByID(id uint) (*model.Branch, error)
-	Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes, minBookingHours int, requireConfirmation, isActive bool, latitude, longitude float64, minPayment int64, bankName, bankAccountNumber, bankAccountName string) (*model.Branch, error)
+	Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes, minBookingHours int, requireConfirmation, isActive bool, latitude, longitude float64, minPayment int64, bankName, bankAccountNumber, bankAccountName, qrisImageURL string) (*model.Branch, error)
+	// UpdateQRIS saves the QRIS image URL for a branch (called after storage upload).
+	UpdateQRIS(id uint, qrisImageURL string) (*model.Branch, error)
 	Delete(id uint) error
 }
 
@@ -79,7 +81,7 @@ func (s *branchService) FindByID(id uint) (*model.Branch, error) {
 	return b, nil
 }
 
-func (s *branchService) Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes, minBookingHours int, requireConfirmation, isActive bool, latitude, longitude float64, minPayment int64, bankName, bankAccountNumber, bankAccountName string) (*model.Branch, error) {
+func (s *branchService) Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes, minBookingHours int, requireConfirmation, isActive bool, latitude, longitude float64, minPayment int64, bankName, bankAccountNumber, bankAccountName, qrisImageURL string) (*model.Branch, error) {
 	b, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, errors.New("cabang tidak ditemukan")
@@ -111,6 +113,21 @@ func (s *branchService) Update(id uint, name, address, phone, openingHours, open
 	b.BankName = bankName
 	b.BankAccountNumber = bankAccountNumber
 	b.BankAccountName = bankAccountName
+	if qrisImageURL != "" {
+		b.QRISImageURL = qrisImageURL
+	}
+	if err := s.repo.Update(b); err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+func (s *branchService) UpdateQRIS(id uint, qrisImageURL string) (*model.Branch, error) {
+	b, err := s.repo.FindByID(id)
+	if err != nil {
+		return nil, errors.New("cabang tidak ditemukan")
+	}
+	b.QRISImageURL = qrisImageURL
 	if err := s.repo.Update(b); err != nil {
 		return nil, err
 	}

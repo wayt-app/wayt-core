@@ -1,0 +1,2 @@
+ALTER TABLE tabl_branches
+  ADD COLUMN IF NOT EXISTS qris_image_url VARCHAR(500) NOT NULL DEFAULT '';
