@@ -254,10 +254,12 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 	if guestCount <= 0 {
 		return nil, errors.New("jumlah tamu harus lebih dari 0")
 	}
-	// Calculate how many tables are needed (combining tables for large groups)
+	// Calculate how many tables are needed (combining tables for large groups).
+	// If tablesCount exceeds TotalTables for this type, the booking is placed on the waiting list
+	// so the restaurant can manually accommodate (e.g. guests split across multiple table types/rooms).
 	tablesCount := (guestCount + tt.Capacity - 1) / tt.Capacity // ceil division
 	if tablesCount > tt.TotalTables {
-		return nil, fmt.Errorf("jumlah tamu (%d) terlalu besar, kapasitas maksimal tipe meja ini %d kursi (%d meja × %d kursi)", guestCount, tt.TotalTables*tt.Capacity, tt.TotalTables, tt.Capacity)
+		tablesCount = tt.TotalTables
 	}
 
 	date, err := parseDate(dateStr)

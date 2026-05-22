@@ -137,13 +137,9 @@ func (s *slotService) GetSlots(branchID uint, dateStr string, guests int, roomID
 			if !tt.IsActive {
 				continue
 			}
-			// Calculate tables needed via combining; skip if even all tables combined can't fit
 			tablesNeeded := 1
 			if guests > 0 {
 				tablesNeeded = (guests + tt.Capacity - 1) / tt.Capacity
-				if tablesNeeded > tt.TotalTables {
-					continue
-				}
 			}
 			booked := bookedByType[tt.ID]
 			available := int64(tt.TotalTables) - booked
@@ -159,8 +155,8 @@ func (s *slotService) GetSlots(branchID uint, dateStr string, guests int, roomID
 				TablesNeeded: tablesNeeded,
 			}
 			slotTables = append(slotTables, st)
-			// Available for auto-assign only if enough tables are free for this group
-			if available >= int64(tablesNeeded) {
+			// Auto-assign only when this type alone can accommodate the full group
+			if tablesNeeded <= tt.TotalTables && available >= int64(tablesNeeded) {
 				availableTables = append(availableTables, st)
 			}
 		}
