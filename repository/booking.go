@@ -52,6 +52,8 @@ type BookingRepository interface {
 	ListCustomerSummaryByRestaurant(restaurantID uint) ([]CustomerSummaryRow, error)
 	// UpdateOrderStatus sets the pre-order kitchen status for a booking.
 	UpdateOrderStatus(id uint, status string) error
+	// UpdatePaymentProof saves the payment proof URL for a booking.
+	UpdatePaymentProof(id uint, url string) error
 	// CountOverlappingByGroup returns total tables_count consumed by overlapping bookings
 	// across all physical table IDs in a group.
 	CountOverlappingByGroup(tableTypeIDs []uint, date time.Time, startTime, endTime string, excludeID uint) (int64, error)
@@ -185,6 +187,11 @@ func (r *bookingRepository) CountOverlappingByGroup(tableTypeIDs []uint, date ti
 func (r *bookingRepository) UpdateOrderStatus(id uint, status string) error {
 	return r.db.Model(&model.Booking{}).Where("id = ?", id).
 		Update("order_status", status).Error
+}
+
+func (r *bookingRepository) UpdatePaymentProof(id uint, url string) error {
+	return r.db.Model(&model.Booking{}).Where("id = ?", id).
+		Update("payment_proof_url", url).Error
 }
 
 func (r *bookingRepository) ListCustomerSummaryByRestaurant(restaurantID uint) ([]CustomerSummaryRow, error) {

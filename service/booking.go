@@ -118,6 +118,8 @@ type BookingService interface {
 	ListCustomersByRestaurant(restaurantID uint) ([]CustomerSummary, error)
 	// UpdateOrderStatus changes the pre-order kitchen status (new/prepare/ready/done).
 	UpdateOrderStatus(bookingID, branchID uint, status string) error
+	// UploadPaymentProof saves a payment proof URL for a customer booking.
+	UploadPaymentProof(bookingID, customerID uint, proofURL string) error
 }
 
 // ReservationIncrementer is a narrow interface so bookingService can trigger
@@ -1517,6 +1519,20 @@ func (s *bookingService) ListCustomersByRestaurant(restaurantID uint) ([]Custome
 		})
 	}
 	return result, nil
+}
+
+func (s *bookingService) UploadPaymentProof(bookingID, customerID uint, proofURL string) error {
+	b, err := s.repo.FindByID(bookingID)
+	if err != nil {
+		return errors.New("booking tidak ditemukan")
+	}
+	if b.CustomerID != customerID {
+		return errors.New("akses tidak diizinkan")
+	}
+	if proofURL == "" {
+		return errors.New("URL bukti transfer tidak boleh kosong")
+	}
+	return s.repo.UpdatePaymentProof(bookingID, proofURL)
 }
 
 var validOrderStatuses = map[string]bool{"new": true, "prepare": true, "ready": true, "done": true}

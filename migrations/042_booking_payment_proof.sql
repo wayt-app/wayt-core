@@ -1,0 +1,2 @@
+ALTER TABLE tabl_bookings
+  ADD COLUMN IF NOT EXISTS payment_proof_url VARCHAR(500) NOT NULL DEFAULT '';
