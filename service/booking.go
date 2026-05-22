@@ -198,30 +198,46 @@ func (s *bookingService) CheckAvailability(branchID uint, dateStr, startTime str
 		return nil, err
 	}
 
-	var results []AvailabilityResult
+	// Group physical tables by (name, capacity, room_id)
+	type grp struct {
+		rep      uint
+		name     string
+		capacity int
+		roomID   *uint
+		ids      []uint
+	}
+	groups := map[string]*grp{}
+	var groupOrder []string
 	for _, tt := range tableTypes {
 		if !tt.IsActive {
 			continue
 		}
-		// Calculate how many tables are needed to accommodate the guests
+		key := tableGroupKey(tt.Name, tt.Capacity, tt.RoomID)
+		if _, ok := groups[key]; !ok {
+			groups[key] = &grp{rep: tt.ID, name: tt.Name, capacity: tt.Capacity, roomID: tt.RoomID}
+			groupOrder = append(groupOrder, key)
+		}
+		groups[key].ids = append(groups[key].ids, tt.ID)
+	}
+
+	var results []AvailabilityResult
+	for _, key := range groupOrder {
+		g := groups[key]
+		totalTables := len(g.ids)
 		tablesNeeded := 1
 		if guests > 0 {
-			tablesNeeded = (guests + tt.Capacity - 1) / tt.Capacity
-			if tablesNeeded > tt.TotalTables {
-				// Even combining all tables isn't enough
-				continue
-			}
+			tablesNeeded = (guests + g.capacity - 1) / g.capacity
 		}
-		booked, err := s.repo.CountOverlapping(tt.ID, date, startTime, endTime, 0)
+		booked, err := s.repo.CountOverlappingByGroup(g.ids, date, startTime, endTime, 0)
 		if err != nil {
 			booked = 0
 		}
-		available := int64(tt.TotalTables) - booked
+		available := int64(totalTables) - booked
 		results = append(results, AvailabilityResult{
-			TableTypeID:  tt.ID,
-			Name:         tt.Name,
-			Capacity:     tt.Capacity,
-			TotalTables:  tt.TotalTables,
+			TableTypeID:  g.rep,
+			Name:         g.name,
+			Capacity:     g.capacity,
+			TotalTables:  totalTables,
 			BookedCount:  booked,
 			Available:    available,
 			TablesNeeded: tablesNeeded,
@@ -254,12 +270,21 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 	if guestCount <= 0 {
 		return nil, errors.New("jumlah tamu harus lebih dari 0")
 	}
-	// Calculate how many tables are needed (combining tables for large groups).
-	// If tablesCount exceeds TotalTables for this type, the booking is placed on the waiting list
-	// so the restaurant can manually accommodate (e.g. guests split across multiple table types/rooms).
+	// Calculate how many tables are needed.
 	tablesCount := (guestCount + tt.Capacity - 1) / tt.Capacity // ceil division
-	if tablesCount > tt.TotalTables {
-		tablesCount = tt.TotalTables
+
+	// Load all physical tables in the same group (same name+capacity+room).
+	groupTables, err := s.tableTypeRepo.FindByGroup(tt.BranchID, tt.Name, tt.Capacity, tt.RoomID)
+	if err != nil || len(groupTables) == 0 {
+		return nil, errors.New("tipe meja tidak ditemukan")
+	}
+	groupIDs := make([]uint, len(groupTables))
+	for i, t := range groupTables {
+		groupIDs[i] = t.ID
+	}
+	groupTotal := len(groupTables)
+	if tablesCount > groupTotal {
+		tablesCount = groupTotal
 	}
 
 	date, err := parseDate(dateStr)
@@ -293,14 +318,14 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 		}
 	}
 
-	// Check availability
-	booked, err := s.repo.CountOverlapping(tableTypeID, date, startTime, endTime, 0)
+	// Check availability against the full group
+	booked, err := s.repo.CountOverlappingByGroup(groupIDs, date, startTime, endTime, 0)
 	if err != nil {
 		return nil, err
 	}
 
 	var status model.BookingStatus
-	if booked+int64(tablesCount) > int64(tt.TotalTables) {
+	if booked+int64(tablesCount) > int64(groupTotal) {
 		// Not enough tables available — put customer on waiting list
 		status = model.BookingStatusWaitingList
 	} else {
@@ -533,14 +558,15 @@ func (s *bookingService) AdminUpdate(id uint, dateStr, startTime, notes string, 
 		return nil, errors.New("tipe meja tidak ditemukan")
 	}
 	tablesCount := (guestCount + tt.Capacity - 1) / tt.Capacity
-	if tablesCount > tt.TotalTables {
-		return nil, fmt.Errorf("jumlah tamu terlalu besar untuk tipe meja ini (maks %d orang)", tt.TotalTables*tt.Capacity)
-	}
-	booked, err := s.repo.CountOverlapping(b.TableTypeID, newDate, startTime, endTime, id)
+	grpTables, _ := s.tableTypeRepo.FindByGroup(tt.BranchID, tt.Name, tt.Capacity, tt.RoomID)
+	grpIDs := make([]uint, len(grpTables))
+	for i, t := range grpTables { grpIDs[i] = t.ID }
+	if tablesCount > len(grpTables) { tablesCount = len(grpTables) }
+	booked, err := s.repo.CountOverlappingByGroup(grpIDs, newDate, startTime, endTime, id)
 	if err != nil {
 		return nil, err
 	}
-	if booked+int64(tablesCount) > int64(tt.TotalTables) {
+	if booked+int64(tablesCount) > int64(len(grpTables)) {
 		return nil, errors.New("slot yang dipilih sudah penuh")
 	}
 	if err := s.repo.UpdateDetails(id, newDate, startTime, endTime, guestCount, notes); err != nil {
@@ -568,19 +594,20 @@ func (s *bookingService) AdminChangeTableType(bookingID, tableTypeID uint) (*mod
 		return nil, errors.New("tipe meja tidak aktif")
 	}
 	tablesCount := (b.GuestCount + tt.Capacity - 1) / tt.Capacity
-	if tablesCount > tt.TotalTables {
-		return nil, fmt.Errorf("kapasitas tipe meja tidak cukup untuk %d tamu (maks %d orang)", b.GuestCount, tt.TotalTables*tt.Capacity)
-	}
 	branch, err := s.branchRepo.FindByID(b.BranchID)
 	if err != nil {
 		return nil, errors.New("cabang tidak ditemukan")
 	}
 	endTime := addMinutes(b.StartTime, branch.DefaultDurationMinutes)
-	booked, err := s.repo.CountOverlapping(tableTypeID, b.BookingDate, b.StartTime, endTime, bookingID)
+	grpTables2, _ := s.tableTypeRepo.FindByGroup(tt.BranchID, tt.Name, tt.Capacity, tt.RoomID)
+	grpIDs2 := make([]uint, len(grpTables2))
+	for i, t := range grpTables2 { grpIDs2[i] = t.ID }
+	if tablesCount > len(grpTables2) { tablesCount = len(grpTables2) }
+	booked, err := s.repo.CountOverlappingByGroup(grpIDs2, b.BookingDate, b.StartTime, endTime, bookingID)
 	if err != nil {
 		return nil, err
 	}
-	if booked+int64(tablesCount) > int64(tt.TotalTables) {
+	if booked+int64(tablesCount) > int64(len(grpTables2)) {
 		return nil, errors.New("tipe meja yang dipilih sudah penuh di slot ini")
 	}
 	if err := s.repo.UpdateTableType(bookingID, tableTypeID); err != nil {
@@ -629,18 +656,20 @@ func (s *bookingService) autoPromote(cancelled *model.Booking) error {
 			// Fallback for old bookings without tables_count
 			tablesNeeded = 1
 		}
-		// Find a table type that can fit this waiter
+		// Find a table type group that can fit this waiter
 		for _, tt := range tableTypes {
 			if !tt.IsActive {
 				continue
 			}
-			// Recalculate tables needed for this table type (capacity may differ)
 			needed := (waiter.GuestCount + tt.Capacity - 1) / tt.Capacity
-			if needed > tt.TotalTables {
+			grpT, _ := s.tableTypeRepo.FindByGroup(tt.BranchID, tt.Name, tt.Capacity, tt.RoomID)
+			if len(grpT) == 0 || needed > len(grpT) {
 				continue
 			}
-			booked, _ := s.repo.CountOverlapping(tt.ID, cancelled.BookingDate, cancelled.StartTime, cancelled.EndTime, waiter.ID)
-			if booked+int64(needed) <= int64(tt.TotalTables) {
+			grpI := make([]uint, len(grpT))
+			for i, t := range grpT { grpI[i] = t.ID }
+			booked, _ := s.repo.CountOverlappingByGroup(grpI, cancelled.BookingDate, cancelled.StartTime, cancelled.EndTime, waiter.ID)
+			if booked+int64(needed) <= int64(len(grpT)) {
 				// Assign this table type and promote
 				_ = s.repo.UpdateTableType(waiter.ID, tt.ID)
 				status := model.BookingStatusConfirmed
@@ -687,21 +716,43 @@ func (s *bookingService) GetTableStatus(branchID uint, dateStr, startTime string
 		return nil, err
 	}
 
-	var tables []TableTypeStatus
+	// Group physical tables; sum booked per group
+	type tsGrp struct {
+		rep      uint
+		name     string
+		capacity int
+		ids      []uint
+	}
+	tsGroups := map[string]*tsGrp{}
+	var tsOrder []string
 	for _, tt := range tableTypes {
 		if !tt.IsActive {
 			continue
 		}
-		booked := bookedMap[tt.ID]
-		available := int64(tt.TotalTables) - booked
+		key := tableGroupKey(tt.Name, tt.Capacity, tt.RoomID)
+		if _, ok := tsGroups[key]; !ok {
+			tsGroups[key] = &tsGrp{rep: tt.ID, name: tt.Name, capacity: tt.Capacity}
+			tsOrder = append(tsOrder, key)
+		}
+		tsGroups[key].ids = append(tsGroups[key].ids, tt.ID)
+	}
+	var tables []TableTypeStatus
+	for _, key := range tsOrder {
+		g := tsGroups[key]
+		var booked int64
+		for _, id := range g.ids {
+			booked += bookedMap[id]
+		}
+		totalTables := int64(len(g.ids))
+		available := totalTables - booked
 		if available < 0 {
 			available = 0
 		}
 		tables = append(tables, TableTypeStatus{
-			TableTypeID: tt.ID,
-			Name:        tt.Name,
-			Capacity:    tt.Capacity,
-			TotalTables: tt.TotalTables,
+			TableTypeID: g.rep,
+			Name:        g.name,
+			Capacity:    g.capacity,
+			TotalTables: int(totalTables),
 			Booked:      booked,
 			Available:   available,
 		})
@@ -1173,11 +1224,6 @@ func (s *bookingService) Reschedule(bookingID, customerID uint, dateStr, startTi
 	}
 	endTime := addMinutes(startTime, branch.DefaultDurationMinutes)
 
-	// Check availability at new slot (exclude current booking)
-	booked, err := s.repo.CountOverlapping(b.TableTypeID, newDate, startTime, endTime, bookingID)
-	if err != nil {
-		return nil, err
-	}
 	tt, err := s.tableTypeRepo.FindByID(b.TableTypeID)
 	if err != nil {
 		return nil, errors.New("tipe meja tidak ditemukan")
@@ -1185,7 +1231,11 @@ func (s *bookingService) Reschedule(bookingID, customerID uint, dateStr, startTi
 	if !tt.IsActive {
 		return nil, errors.New("tipe meja tidak lagi aktif, silakan hubungi restoran untuk bantuan lebih lanjut")
 	}
-	if booked+int64(b.TablesCount) > int64(tt.TotalTables) {
+	rGrpTables, _ := s.tableTypeRepo.FindByGroup(tt.BranchID, tt.Name, tt.Capacity, tt.RoomID)
+	rGrpIDs := make([]uint, len(rGrpTables))
+	for i, t := range rGrpTables { rGrpIDs[i] = t.ID }
+	rBooked, _ := s.repo.CountOverlappingByGroup(rGrpIDs, newDate, startTime, endTime, bookingID)
+	if rBooked+int64(b.TablesCount) > int64(len(rGrpTables)) {
 		return nil, errors.New("slot baru tidak tersedia, silakan pilih waktu lain")
 	}
 

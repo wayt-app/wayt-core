@@ -52,6 +52,9 @@ type BookingRepository interface {
 	ListCustomerSummaryByRestaurant(restaurantID uint) ([]CustomerSummaryRow, error)
 	// UpdateOrderStatus sets the pre-order kitchen status for a booking.
 	UpdateOrderStatus(id uint, status string) error
+	// CountOverlappingByGroup returns total tables_count consumed by overlapping bookings
+	// across all physical table IDs in a group.
+	CountOverlappingByGroup(tableTypeIDs []uint, date time.Time, startTime, endTime string, excludeID uint) (int64, error)
 }
 
 // CustomerSummaryRow is the raw DB result used by the repository.
@@ -154,6 +157,29 @@ func (r *bookingRepository) CompleteWithDetails(id uint, notes string, totalBill
 			"completion_notes": notes,
 			"total_bill":       totalBill,
 		}).Error
+}
+
+// CountOverlappingByGroup returns total tables_count consumed by overlapping bookings
+// for all physical tables in a group (identified by their IDs).
+func (r *bookingRepository) CountOverlappingByGroup(tableTypeIDs []uint, date time.Time, startTime, endTime string, excludeID uint) (int64, error) {
+	if len(tableTypeIDs) == 0 {
+		return 0, nil
+	}
+	var total *int64
+	q := r.db.Model(&model.Booking{}).
+		Select("COALESCE(SUM(tables_count), 0)").
+		Where("table_type_id IN ?", tableTypeIDs).
+		Where("booking_date = ?", date.Format("2006-01-02")).
+		Where("status IN ('pending','confirmed','checked_in')").
+		Where("start_time < ? AND end_time > ?", endTime, startTime)
+	if excludeID > 0 {
+		q = q.Where("id != ?", excludeID)
+	}
+	err := q.Scan(&total).Error
+	if total == nil {
+		return 0, err
+	}
+	return *total, err
 }
 
 func (r *bookingRepository) UpdateOrderStatus(id uint, status string) error {

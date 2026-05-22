@@ -8,7 +8,6 @@ type TableType struct {
 	RoomID      *uint      `gorm:"index"                    json:"room_id,omitempty"`
 	Name        string     `gorm:"size:100;not null"        json:"name"`
 	Capacity    int        `gorm:"not null"                 json:"capacity"`
-	TotalTables int        `gorm:"default:1"                json:"total_tables"`
 	IsActive    bool       `gorm:"default:true"             json:"is_active"`
 	CreatedAt   time.Time  `                                json:"created_at"`
 	UpdatedAt   time.Time  `                                json:"updated_at"`

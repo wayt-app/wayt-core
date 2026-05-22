@@ -12,6 +12,9 @@ type TableTypeRepository interface {
 	// roomID == nil → all table types regardless of room assignment.
 	// roomID != nil → only table types with room_id = *roomID.
 	FindByBranchAndRoom(branchID uint, roomID *uint) ([]model.TableType, error)
+	// FindByGroup returns all physical table rows sharing the same name+capacity+room_id
+	// within a branch (i.e. all rows in the same "table group").
+	FindByGroup(branchID uint, name string, capacity int, roomID *uint) ([]model.TableType, error)
 	FindByID(id uint) (*model.TableType, error)
 	Update(t *model.TableType) error
 	Delete(id uint) error
@@ -38,6 +41,18 @@ func (r *tableTypeRepository) FindByBranchAndRoom(branchID uint, roomID *uint) (
 	var list []model.TableType
 	q := r.db.Where("branch_id = ? AND deleted_at IS NULL", branchID)
 	if roomID != nil {
+		q = q.Where("room_id = ?", *roomID)
+	}
+	err := q.Order("id ASC").Find(&list).Error
+	return list, err
+}
+
+func (r *tableTypeRepository) FindByGroup(branchID uint, name string, capacity int, roomID *uint) ([]model.TableType, error) {
+	var list []model.TableType
+	q := r.db.Where("branch_id = ? AND name = ? AND capacity = ? AND deleted_at IS NULL", branchID, name, capacity)
+	if roomID == nil {
+		q = q.Where("room_id IS NULL")
+	} else {
 		q = q.Where("room_id = ?", *roomID)
 	}
 	err := q.Order("id ASC").Find(&list).Error
