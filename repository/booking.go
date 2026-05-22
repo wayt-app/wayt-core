@@ -50,6 +50,8 @@ type BookingRepository interface {
 	CompleteWithDetails(id uint, notes string, totalBill int64) error
 	// ListCustomerSummaryByRestaurant returns aggregated completed-booking data per customer for a restaurant.
 	ListCustomerSummaryByRestaurant(restaurantID uint) ([]CustomerSummaryRow, error)
+	// UpdateOrderStatus sets the pre-order kitchen status for a booking.
+	UpdateOrderStatus(id uint, status string) error
 }
 
 // CustomerSummaryRow is the raw DB result used by the repository.
@@ -152,6 +154,11 @@ func (r *bookingRepository) CompleteWithDetails(id uint, notes string, totalBill
 			"completion_notes": notes,
 			"total_bill":       totalBill,
 		}).Error
+}
+
+func (r *bookingRepository) UpdateOrderStatus(id uint, status string) error {
+	return r.db.Model(&model.Booking{}).Where("id = ?", id).
+		Update("order_status", status).Error
 }
 
 func (r *bookingRepository) ListCustomerSummaryByRestaurant(restaurantID uint) ([]CustomerSummaryRow, error) {

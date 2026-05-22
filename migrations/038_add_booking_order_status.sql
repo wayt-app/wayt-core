@@ -1,0 +1,2 @@
+ALTER TABLE tabl_bookings
+  ADD COLUMN IF NOT EXISTS order_status VARCHAR(20) NOT NULL DEFAULT 'new';

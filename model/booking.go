@@ -28,6 +28,7 @@ type Booking struct {
 	Status      BookingStatus `gorm:"type:tabl_booking_status;default:'pending'" json:"status"`
 	Notes           string        `gorm:"type:text"                          json:"notes"`
 	MenuOrder       string        `gorm:"type:text"                          json:"menu_order"`
+	OrderStatus     string        `gorm:"size:20;not null;default:'new'"     json:"order_status"`
 	CancelReason    string        `gorm:"type:text"                          json:"cancel_reason,omitempty"`
 	CompletionNotes string        `gorm:"type:text;not null;default:''"      json:"completion_notes,omitempty"`
 	TotalBill       int64         `gorm:"not null;default:0"                 json:"total_bill,omitempty"`

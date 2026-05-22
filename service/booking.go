@@ -114,6 +114,8 @@ type BookingService interface {
 	// ListCustomersByRestaurant returns aggregated customer data for a restaurant for retention purposes.
 	// Sorted by last_visit ASC (longest-absent first).
 	ListCustomersByRestaurant(restaurantID uint) ([]CustomerSummary, error)
+	// UpdateOrderStatus changes the pre-order kitchen status (new/prepare/ready/done).
+	UpdateOrderStatus(bookingID, branchID uint, status string) error
 }
 
 // ReservationIncrementer is a narrow interface so bookingService can trigger
@@ -1301,6 +1303,22 @@ func (s *bookingService) ListCustomersByRestaurant(restaurantID uint) ([]Custome
 		})
 	}
 	return result, nil
+}
+
+var validOrderStatuses = map[string]bool{"new": true, "prepare": true, "ready": true, "done": true}
+
+func (s *bookingService) UpdateOrderStatus(bookingID, branchID uint, status string) error {
+	if !validOrderStatuses[status] {
+		return errors.New("status tidak valid, gunakan: new, prepare, ready, done")
+	}
+	b, err := s.repo.FindByID(bookingID)
+	if err != nil {
+		return errors.New("booking tidak ditemukan")
+	}
+	if b.BranchID != branchID {
+		return errors.New("akses tidak diizinkan")
+	}
+	return s.repo.UpdateOrderStatus(bookingID, status)
 }
 
 // ProcessReminders sends H-1 reminders for tomorrow's bookings (pending or confirmed).
