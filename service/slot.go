@@ -162,16 +162,20 @@ func (s *slotService) GetSlots(branchID uint, dateStr string, guests int, roomID
 		}
 	}
 
-	nowStr := ""
 	isToday := date.Equal(today())
+	cutoffMins := -1 // minutes-since-midnight cutoff for today; -1 = no cutoff
 	if isToday {
-		nowStr = nowWIB().Format("15:04")
+		nowMins := timeToMinutes(nowWIB().Format("15:04"))
+		cutoffMins = nowMins
+		if branch.MinBookingHours > 0 {
+			cutoffMins = nowMins + branch.MinBookingHours*60
+		}
 	}
 
 	var results []SlotResult
 	for _, start := range startTimes {
 		end := addMinutes(start, duration)
-		if isToday && start <= nowStr {
+		if isToday && timeToMinutes(start) <= cutoffMins {
 			continue
 		}
 

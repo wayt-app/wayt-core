@@ -1,0 +1,5 @@
+ALTER TABLE tabl_branches
+  ADD COLUMN IF NOT EXISTS min_booking_hours     INTEGER      NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS bank_name             VARCHAR(100) NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS bank_account_number   VARCHAR(50)  NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS bank_account_name     VARCHAR(100) NOT NULL DEFAULT '';

@@ -12,7 +12,7 @@ type BranchService interface {
 	ListByRestaurant(restaurantID uint) ([]model.Branch, error)
 	ListActiveByRestaurant(restaurantID uint) ([]model.Branch, error)
 	FindByID(id uint) (*model.Branch, error)
-	Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes int, requireConfirmation, isActive bool, latitude, longitude float64, minPayment int64) (*model.Branch, error)
+	Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes, minBookingHours int, requireConfirmation, isActive bool, latitude, longitude float64, minPayment int64, bankName, bankAccountNumber, bankAccountName string) (*model.Branch, error)
 	Delete(id uint) error
 }
 
@@ -79,7 +79,7 @@ func (s *branchService) FindByID(id uint) (*model.Branch, error) {
 	return b, nil
 }
 
-func (s *branchService) Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes int, requireConfirmation, isActive bool, latitude, longitude float64, minPayment int64) (*model.Branch, error) {
+func (s *branchService) Update(id uint, name, address, phone, openingHours, openFrom, openTo string, slotInterval, durationMinutes, minBookingHours int, requireConfirmation, isActive bool, latitude, longitude float64, minPayment int64, bankName, bankAccountNumber, bankAccountName string) (*model.Branch, error) {
 	b, err := s.repo.FindByID(id)
 	if err != nil {
 		return nil, errors.New("cabang tidak ditemukan")
@@ -98,6 +98,9 @@ func (s *branchService) Update(id uint, name, address, phone, openingHours, open
 	if durationMinutes > 0 {
 		b.DefaultDurationMinutes = durationMinutes
 	}
+	if minBookingHours >= 0 {
+		b.MinBookingHours = minBookingHours
+	}
 	b.RequireConfirmation = requireConfirmation
 	b.IsActive = isActive
 	b.Latitude = latitude
@@ -105,6 +108,9 @@ func (s *branchService) Update(id uint, name, address, phone, openingHours, open
 	if minPayment >= 0 {
 		b.MinPayment = minPayment
 	}
+	b.BankName = bankName
+	b.BankAccountNumber = bankAccountNumber
+	b.BankAccountName = bankAccountName
 	if err := s.repo.Update(b); err != nil {
 		return nil, err
 	}

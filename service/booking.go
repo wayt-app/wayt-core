@@ -305,6 +305,9 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 	if err := validateTime(startTime); err != nil {
 		return nil, err
 	}
+	if err := checkMinBookingHours(date, startTime, branch.MinBookingHours); err != nil {
+		return nil, err
+	}
 
 	endTime := addMinutes(startTime, branch.DefaultDurationMinutes)
 
@@ -407,6 +410,9 @@ func (s *bookingService) CreateFromRoom(customerID, branchID uint, roomID *uint,
 		return nil, errors.New("booking maksimal 30 hari ke depan")
 	}
 	if err := validateTime(startTime); err != nil {
+		return nil, err
+	}
+	if err := checkMinBookingHours(date, startTime, branch.MinBookingHours); err != nil {
 		return nil, err
 	}
 	endTime := addMinutes(startTime, branch.DefaultDurationMinutes)
@@ -1593,6 +1599,19 @@ func (s *bookingService) sendReminderNotif(b *model.Booking) {
 }
 
 // --- helpers ---
+
+// checkMinBookingHours returns an error if startTime is within branch.MinBookingHours from now (today only).
+func checkMinBookingHours(date time.Time, startTime string, minHours int) error {
+	if minHours <= 0 || !date.Equal(today()) {
+		return nil
+	}
+	nowMins := timeToMinutes(nowWIB().Format("15:04"))
+	startMins := timeToMinutes(startTime)
+	if startMins <= nowMins+minHours*60 {
+		return fmt.Errorf("reservasi minimal %d jam dari sekarang", minHours)
+	}
+	return nil
+}
 
 func parseDate(s string) (time.Time, error) {
 	return time.ParseInLocation("2006-01-02", s, jakartaLoc)

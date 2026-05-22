@@ -16,6 +16,10 @@ type Branch struct {
 	RequireConfirmation    bool       `gorm:"default:true"             json:"require_confirmation"`
 	IsActive               bool       `gorm:"default:true"             json:"is_active"`
 	MinPayment             int64      `gorm:"default:0"                json:"min_payment"`
+	MinBookingHours        int        `gorm:"default:0"                json:"min_booking_hours"`
+	BankName               string     `gorm:"size:100;not null;default:''" json:"bank_name"`
+	BankAccountNumber      string     `gorm:"size:50;not null;default:''"  json:"bank_account_number"`
+	BankAccountName        string     `gorm:"size:100;not null;default:''" json:"bank_account_name"`
 	Latitude               float64    `gorm:"default:0"                json:"latitude"`
 	Longitude              float64    `gorm:"default:0"                json:"longitude"`
 	CreatedAt              time.Time  `                                json:"created_at"`
