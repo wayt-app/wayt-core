@@ -84,6 +84,8 @@ type CustomerSummary struct {
 type BookingService interface {
 	CheckAvailability(branchID uint, dateStr, startTime string, guests int, roomID *uint) ([]AvailabilityResult, error)
 	Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes, menuOrder, source, guestEmail string) (*model.Booking, error)
+	// CreateFromRoom books by choosing a room; the system computes the optimal multi-type assignment.
+	CreateFromRoom(customerID, branchID uint, roomID *uint, dateStr, startTime string, guestCount int, notes, menuOrder, source, guestEmail string) (*model.Booking, error)
 	MyBookings(customerID uint) ([]model.Booking, error)
 	GetByID(id uint) (*model.Booking, error)
 	Cancel(id uint, customerID uint, reason string) error
@@ -125,25 +127,27 @@ type ReservationIncrementer interface {
 }
 
 type bookingService struct {
-	repo            repository.BookingRepository
-	branchRepo      repository.BranchRepository
-	tableTypeRepo   repository.TableTypeRepository
-	customerRepo    repository.CustomerRepository
-	subRepo         repository.SubscriptionRepository
-	restaurantRepo  repository.RestaurantRepository
-	staffRepo       repository.StaffRepository
-	ownerRepo       repository.BusinessOwnerRepository
-	waSender        whatsapp.Sender
-	emailSender     email.Sender
-	notifSvc        NotificationService
-	reservIncr      ReservationIncrementer
-	emailConfigRepo repository.EmailConfigRepository
+	repo             repository.BookingRepository
+	branchRepo       repository.BranchRepository
+	tableTypeRepo    repository.TableTypeRepository
+	bookingTableRepo repository.BookingTableRepository
+	customerRepo     repository.CustomerRepository
+	subRepo          repository.SubscriptionRepository
+	restaurantRepo   repository.RestaurantRepository
+	staffRepo        repository.StaffRepository
+	ownerRepo        repository.BusinessOwnerRepository
+	waSender         whatsapp.Sender
+	emailSender      email.Sender
+	notifSvc         NotificationService
+	reservIncr       ReservationIncrementer
+	emailConfigRepo  repository.EmailConfigRepository
 }
 
 func NewBookingService(
 	repo repository.BookingRepository,
 	branchRepo repository.BranchRepository,
 	tableTypeRepo repository.TableTypeRepository,
+	bookingTableRepo repository.BookingTableRepository,
 	customerRepo repository.CustomerRepository,
 	subRepo repository.SubscriptionRepository,
 	restaurantRepo repository.RestaurantRepository,
@@ -156,19 +160,20 @@ func NewBookingService(
 	emailConfigRepo repository.EmailConfigRepository,
 ) BookingService {
 	return &bookingService{
-		repo:            repo,
-		branchRepo:      branchRepo,
-		tableTypeRepo:   tableTypeRepo,
-		customerRepo:    customerRepo,
-		subRepo:         subRepo,
-		restaurantRepo:  restaurantRepo,
-		staffRepo:       staffRepo,
-		ownerRepo:       ownerRepo,
-		waSender:        waSender,
-		emailSender:     emailSender,
-		notifSvc:        notifSvc,
-		reservIncr:      reservIncr,
-		emailConfigRepo: emailConfigRepo,
+		repo:             repo,
+		branchRepo:       branchRepo,
+		tableTypeRepo:    tableTypeRepo,
+		bookingTableRepo: bookingTableRepo,
+		customerRepo:     customerRepo,
+		subRepo:          subRepo,
+		restaurantRepo:   restaurantRepo,
+		staffRepo:        staffRepo,
+		ownerRepo:        ownerRepo,
+		waSender:         waSender,
+		emailSender:      emailSender,
+		notifSvc:         notifSvc,
+		reservIncr:       reservIncr,
+		emailConfigRepo:  emailConfigRepo,
 	}
 }
 
@@ -359,6 +364,10 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 	if err := s.repo.Create(b); err != nil {
 		return nil, err
 	}
+	// Record assignment in booking_tables (single-type)
+	_ = s.bookingTableRepo.CreateBatch([]model.BookingTable{
+		{BookingID: b.ID, TableTypeID: tableTypeID, Count: tablesCount},
+	})
 	go s.sendBookingNotif(b, string(status))
 	go s.sendBookingEmail(b, string(status))
 	go s.sendOwnerBookingEmail(b, string(status))
@@ -370,6 +379,153 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 			if err == nil && rest != nil && rest.BusinessOwnerID != nil {
 				_ = s.reservIncr.IncrementReservation(*rest.BusinessOwnerID)
 			}
+		}(branch.RestaurantID)
+	}
+	return b, nil
+}
+
+func (s *bookingService) CreateFromRoom(customerID, branchID uint, roomID *uint, dateStr, startTime string, guestCount int, notes, menuOrder, source, guestEmail string) (*model.Booking, error) {
+	branch, err := s.branchRepo.FindByID(branchID)
+	if err != nil {
+		return nil, errors.New("cabang tidak ditemukan")
+	}
+	if !branch.IsActive {
+		return nil, errors.New("cabang tidak aktif")
+	}
+	if guestCount <= 0 {
+		return nil, errors.New("jumlah tamu harus lebih dari 0")
+	}
+
+	date, err := parseDate(dateStr)
+	if err != nil {
+		return nil, errors.New("format tanggal tidak valid, gunakan YYYY-MM-DD")
+	}
+	if date.Before(today()) {
+		return nil, errors.New("tanggal tidak boleh di masa lalu")
+	}
+	if date.After(today().AddDate(0, 0, 30)) {
+		return nil, errors.New("booking maksimal 30 hari ke depan")
+	}
+	if err := validateTime(startTime); err != nil {
+		return nil, err
+	}
+	endTime := addMinutes(startTime, branch.DefaultDurationMinutes)
+
+	// Load all active tables in the room
+	roomTables, err := s.tableTypeRepo.FindByBranchAndRoom(branchID, roomID)
+	if err != nil || len(roomTables) == 0 {
+		return nil, errors.New("tidak ada meja tersedia di ruangan ini")
+	}
+	var activeTables []model.TableType
+	for _, t := range roomTables {
+		if t.IsActive {
+			activeTables = append(activeTables, t)
+		}
+	}
+
+	// Get booked counts per table type for this slot
+	allIDs := make([]uint, len(activeTables))
+	for i, t := range activeTables {
+		allIDs[i] = t.ID
+	}
+	bookedMap, err := s.bookingTableRepo.SumByTypeIDsAndSlot(allIDs, date, startTime, endTime, 0)
+	if err != nil {
+		bookedMap = map[uint]int64{}
+	}
+
+	// Build availability per table type
+	var avails []typeAvail
+	for _, t := range activeTables {
+		free := 1 - int(bookedMap[t.ID])
+		if free > 0 {
+			avails = append(avails, typeAvail{id: t.ID, name: t.Name, capacity: t.Capacity, count: free})
+		}
+	}
+
+	// Compute optimal assignment
+	assign := computeOptimalAssignment(guestCount, avails)
+
+	// Subscription limit check
+	isOverLimit := false
+	if s.subRepo != nil {
+		sub, subErr := s.subRepo.FindByRestaurantID(branch.RestaurantID)
+		if subErr == nil && sub != nil {
+			if sub.Status != model.SubscriptionStatusActive && sub.Status != model.SubscriptionStatusTrial {
+				return nil, errors.New("restoran tidak memiliki langganan aktif")
+			}
+			if sub.Plan != nil && sub.Plan.MaxReservationsPerMonth != -1 &&
+				sub.ReservationsThisMonth >= sub.Plan.MaxReservationsPerMonth {
+				isOverLimit = true
+			}
+		}
+	}
+
+	var status model.BookingStatus
+	var anchorTableTypeID uint
+	var totalTables int
+	var bookingTables []model.BookingTable
+
+	if assign == nil {
+		// No optimal assignment possible → waiting list using smallest available table
+		status = model.BookingStatusWaitingList
+		if len(activeTables) > 0 {
+			anchorTableTypeID = activeTables[0].ID
+			totalTables = 1
+			bookingTables = []model.BookingTable{{TableTypeID: anchorTableTypeID, Count: 1}}
+		} else {
+			return nil, errors.New("tidak ada meja tersedia")
+		}
+	} else {
+		status = model.BookingStatusConfirmed
+		if branch.RequireConfirmation {
+			status = model.BookingStatusPending
+		}
+		anchorTableTypeID = assign[0].id
+		for _, a := range assign {
+			totalTables += a.count
+			bookingTables = append(bookingTables, model.BookingTable{TableTypeID: a.id, Count: a.count})
+		}
+	}
+
+	if source == "" {
+		source = "app"
+	}
+	b := &model.Booking{
+		CustomerID:  customerID,
+		BranchID:    branchID,
+		TableTypeID: anchorTableTypeID,
+		RoomID:      roomID,
+		BookingDate: date,
+		StartTime:   startTime,
+		EndTime:     endTime,
+		GuestCount:  guestCount,
+		TablesCount: totalTables,
+		Status:      status,
+		Notes:       notes,
+		MenuOrder:   menuOrder,
+		IsOverLimit: isOverLimit,
+		Source:      source,
+		GuestEmail:  guestEmail,
+	}
+	if err := s.repo.Create(b); err != nil {
+		return nil, err
+	}
+	for i := range bookingTables {
+		bookingTables[i].BookingID = b.ID
+	}
+	_ = s.bookingTableRepo.CreateBatch(bookingTables)
+
+	go s.sendBookingNotif(b, string(status))
+	go s.sendBookingEmail(b, string(status))
+	go s.sendOwnerBookingEmail(b, string(status))
+	go s.sendInAppNotif(b, string(status))
+	if s.reservIncr != nil {
+		go func(restaurantID uint) {
+			rest, err := s.restaurantRepo.FindByID(restaurantID)
+			if err != nil || rest == nil || rest.BusinessOwnerID == nil {
+				return
+			}
+			_ = s.reservIncr.IncrementReservation(*rest.BusinessOwnerID)
 		}(branch.RestaurantID)
 	}
 	return b, nil

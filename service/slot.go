@@ -3,27 +3,47 @@ package service
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 
+	"github.com/wayt-app/wayt-core/model"
 	"github.com/wayt-app/wayt-core/repository"
 )
 
-// SlotTable represents availability of one table group within a time slot.
-type SlotTable struct {
-	TableTypeID  uint   `json:"table_type_id"` // representative ID (any physical table in the group)
-	Name         string `json:"name"`
-	Capacity     int    `json:"capacity"`
-	TotalTables  int    `json:"total_tables"` // computed: count of physical tables in group
-	Available    int64  `json:"available"`
-	TablesNeeded int    `json:"tables_needed"`
+// AssignedTable is one line in an optimal room assignment.
+type AssignedTable struct {
+	TableTypeID uint   `json:"table_type_id"`
+	Name        string `json:"name"`
+	Capacity    int    `json:"capacity"`
+	Count       int    `json:"count"`
 }
 
-// SlotResult is a single bookable time slot with available table groups.
+// SlotRoom represents a room's availability for a given time slot.
+type SlotRoom struct {
+	RoomID      *uint           `json:"room_id"`
+	RoomName    string          `json:"room_name"`
+	Assignment  []AssignedTable `json:"assignment"`  // optimal table assignment
+	TotalSeats  int             `json:"total_seats"` // seats covered by assignment
+	WastedSeats int             `json:"wasted_seats"`
+	TableCount  int             `json:"table_count"`
+}
+
+// SlotResult is a single bookable time slot.
 type SlotResult struct {
-	StartTime    string      `json:"start_time"`
-	EndTime      string      `json:"end_time"`
-	Tables       []SlotTable `json:"tables"`
-	AutoAssigned *SlotTable  `json:"auto_assigned"`
+	StartTime    string     `json:"start_time"`
+	EndTime      string     `json:"end_time"`
+	Rooms        []SlotRoom `json:"rooms"`         // all rooms with an available assignment
+	AutoAssigned *SlotRoom  `json:"auto_assigned"` // best room (min wasted, then min tables)
+}
+
+// SlotTable is kept for backward compat with CheckAvailability.
+type SlotTable struct {
+	TableTypeID  uint   `json:"table_type_id"`
+	Name         string `json:"name"`
+	Capacity     int    `json:"capacity"`
+	TotalTables  int    `json:"total_tables"`
+	Available    int64  `json:"available"`
+	TablesNeeded int    `json:"tables_needed"`
 }
 
 type SlotService interface {
@@ -31,35 +51,41 @@ type SlotService interface {
 }
 
 type slotService struct {
-	branchRepo    repository.BranchRepository
-	tableTypeRepo repository.TableTypeRepository
-	bookingRepo   repository.BookingRepository
+	branchRepo       repository.BranchRepository
+	tableTypeRepo    repository.TableTypeRepository
+	bookingRepo      repository.BookingRepository
+	bookingTableRepo repository.BookingTableRepository
 }
 
 func NewSlotService(
 	branchRepo repository.BranchRepository,
 	tableTypeRepo repository.TableTypeRepository,
 	bookingRepo repository.BookingRepository,
+	bookingTableRepo repository.BookingTableRepository,
 ) SlotService {
 	return &slotService{
-		branchRepo:    branchRepo,
-		tableTypeRepo: tableTypeRepo,
-		bookingRepo:   bookingRepo,
+		branchRepo:       branchRepo,
+		tableTypeRepo:    tableTypeRepo,
+		bookingRepo:      bookingRepo,
+		bookingTableRepo: bookingTableRepo,
 	}
 }
 
-// tableGroup groups physical table rows sharing the same name+capacity+room.
-type tableGroup struct {
-	representative uint   // ID of the first physical table in the group (used as slot table_type_id)
-	name           string
-	capacity       int
-	roomID         *uint
-	ids            []uint // all physical table IDs in the group
+// roomPool groups physical tables belonging to the same room.
+type roomPool struct {
+	roomID   *uint
+	roomName string
+	tables   []model.TableType // all active physical tables in this room
 }
 
-// tableGroupKey groups physical tables by capacity + room only.
-// Name is cosmetic — two tables of the same capacity in the same room
-// are interchangeable regardless of their individual names.
+func roomKey(roomID *uint) string {
+	if roomID == nil {
+		return ""
+	}
+	return fmt.Sprintf("%d", *roomID)
+}
+
+// tableGroupKey is used by booking.go for grouping by capacity+room.
 func tableGroupKey(capacity int, roomID *uint) string {
 	if roomID == nil {
 		return fmt.Sprintf("%d|", capacity)
@@ -109,32 +135,31 @@ func (s *slotService) GetSlots(branchID uint, dateStr string, guests int, roomID
 		return nil, err
 	}
 
-	// Build groups: each group = all physical tables with same name+capacity+room.
-	groups := map[string]*tableGroup{}
-	var groupOrder []string // preserve insertion order for stable output
-	idToGroupKey := map[uint]string{}
+	// Group tables by room.
+	roomMap := map[string]*roomPool{}
+	var roomOrder []string
 	for _, tt := range tableTypes {
 		if !tt.IsActive {
 			continue
 		}
-		key := tableGroupKey(tt.Capacity, tt.RoomID)
-		if _, ok := groups[key]; !ok {
-			groups[key] = &tableGroup{
-				representative: tt.ID,
-				name:           tt.Name,
-				capacity:       tt.Capacity,
-				roomID:         tt.RoomID,
+		key := roomKey(tt.RoomID)
+		if _, ok := roomMap[key]; !ok {
+			roomName := ""
+			if tt.Room != nil {
+				roomName = tt.Room.Name
 			}
-			groupOrder = append(groupOrder, key)
+			roomMap[key] = &roomPool{roomID: tt.RoomID, roomName: roomName}
+			roomOrder = append(roomOrder, key)
 		}
-		groups[key].ids = append(groups[key].ids, tt.ID)
-		idToGroupKey[tt.ID] = key
+		roomMap[key].tables = append(roomMap[key].tables, tt)
 	}
 
-	// Fetch all active bookings for this branch+date in ONE query.
-	activeBookings, err := s.bookingRepo.FindActiveByBranchDate(branchID, date)
-	if err != nil {
-		return nil, err
+	// Collect all table type IDs for availability query.
+	var allTypeIDs []uint
+	for _, rp := range roomMap {
+		for _, tt := range rp.tables {
+			allTypeIDs = append(allTypeIDs, tt.ID)
+		}
 	}
 
 	nowStr := ""
@@ -150,81 +175,173 @@ func (s *slotService) GetSlots(branchID uint, dateStr string, guests int, roomID
 			continue
 		}
 
-		// Compute booked tables_count per group from in-memory bookings.
-		bookedByGroup := make(map[string]int64)
-		for _, b := range activeBookings {
-			bStart := b.StartTime
-			if len(bStart) > 5 {
-				bStart = bStart[:5]
-			}
-			bEnd := b.EndTime
-			if len(bEnd) > 5 {
-				bEnd = bEnd[:5]
-			}
-			if bStart < end && bEnd > start {
-				if gk, ok := idToGroupKey[b.TableTypeID]; ok {
-					bookedByGroup[gk] += int64(b.TablesCount)
+		// Fetch booked count per table_type_id from booking_tables for this slot.
+		bookedByTypeID, err := s.bookingTableRepo.SumByTypeIDsAndSlot(allTypeIDs, date, start, end, 0)
+		if err != nil {
+			bookedByTypeID = map[uint]int64{}
+		}
+
+		var availRooms []SlotRoom
+		for _, key := range roomOrder {
+			rp := roomMap[key]
+
+			// Build available-count per table type for this room.
+			var avails []typeAvail
+			for _, tt := range rp.tables {
+				free := 1 - int(bookedByTypeID[tt.ID])
+				if free > 0 {
+					avails = append(avails, typeAvail{
+						id:       tt.ID,
+						name:     tt.Name,
+						capacity: tt.Capacity,
+						count:    free,
+					})
 				}
 			}
-		}
 
-		var slotTables []SlotTable
-		var availableTables []SlotTable
-		for _, key := range groupOrder {
-			g := groups[key]
-			totalTables := int64(len(g.ids))
-			booked := bookedByGroup[key]
-			available := totalTables - booked
-			if available < 0 {
-				available = 0
-			}
-			tablesNeeded := 1
-			if guests > 0 {
-				tablesNeeded = (guests + g.capacity - 1) / g.capacity
-			}
-			st := SlotTable{
-				TableTypeID:  g.representative,
-				Name:         g.name,
-				Capacity:     g.capacity,
-				TotalTables:  int(totalTables),
-				Available:    available,
-				TablesNeeded: tablesNeeded,
-			}
-			slotTables = append(slotTables, st)
-			if tablesNeeded <= int(totalTables) && available >= int64(tablesNeeded) {
-				availableTables = append(availableTables, st)
-			}
-		}
-
-		// Sort slotTables by capacity ascending for display
-		sort.Slice(slotTables, func(i, j int) bool {
-			return slotTables[i].Capacity < slotTables[j].Capacity
-		})
-
-		// Sort availableTables: min wasted seats first, then min tables needed
-		wastedSeats := func(st SlotTable) int {
 			if guests <= 0 {
-				return 0
+				// No guest count: just show room as available
+				availRooms = append(availRooms, SlotRoom{
+					RoomID:   rp.roomID,
+					RoomName: rp.roomName,
+				})
+				continue
 			}
-			return st.TablesNeeded*st.Capacity - guests
+
+			// Compute optimal assignment for this room.
+			assign := computeOptimalAssignment(guests, avails)
+			if assign == nil {
+				continue // room can't accommodate
+			}
+
+			wasted := 0
+			tableCount := 0
+			var assigned []AssignedTable
+			for _, a := range assign {
+				wasted += a.count*a.capacity - guests
+				if wasted < 0 { // reset: wasted is cumulative only at end
+					wasted = 0
+				}
+				tableCount += a.count
+				assigned = append(assigned, AssignedTable{
+					TableTypeID: a.id,
+					Name:        a.name,
+					Capacity:    a.capacity,
+					Count:       a.count,
+				})
+			}
+			// Recalculate wasted correctly
+			total := 0
+			for _, a := range assign {
+				total += a.count * a.capacity
+			}
+			wasted = total - guests
+
+			availRooms = append(availRooms, SlotRoom{
+				RoomID:      rp.roomID,
+				RoomName:    rp.roomName,
+				Assignment:  assigned,
+				TotalSeats:  total,
+				WastedSeats: wasted,
+				TableCount:  tableCount,
+			})
 		}
-		sort.Slice(availableTables, func(i, j int) bool {
-			wi, wj := wastedSeats(availableTables[i]), wastedSeats(availableTables[j])
-			if wi != wj {
-				return wi < wj
+
+		// Sort availRooms: min wasted, then min tables
+		sort.Slice(availRooms, func(i, j int) bool {
+			if availRooms[i].WastedSeats != availRooms[j].WastedSeats {
+				return availRooms[i].WastedSeats < availRooms[j].WastedSeats
 			}
-			return availableTables[i].TablesNeeded < availableTables[j].TablesNeeded
+			return availRooms[i].TableCount < availRooms[j].TableCount
 		})
 
-		slot := SlotResult{StartTime: start, EndTime: end, Tables: slotTables}
-		if len(availableTables) > 0 {
-			auto := availableTables[0]
+		slot := SlotResult{StartTime: start, EndTime: end, Rooms: availRooms}
+		if len(availRooms) > 0 {
+			auto := availRooms[0]
 			slot.AutoAssigned = &auto
 		}
 		results = append(results, slot)
 	}
 
 	return results, nil
+}
+
+// typeAvail is used internally for optimal assignment.
+type typeAvail struct {
+	id       uint
+	name     string
+	capacity int
+	count    int // available units
+}
+
+type typeAssign struct {
+	id       uint
+	name     string
+	capacity int
+	count    int
+}
+
+// computeOptimalAssignment finds the combination of tables with minimum wasted seats,
+// then minimum table count, that seats at least `guests` people.
+// Returns nil if impossible.
+func computeOptimalAssignment(guests int, avails []typeAvail) []typeAssign {
+	if guests <= 0 || len(avails) == 0 {
+		return nil
+	}
+
+	// Sort descending by capacity for better pruning.
+	sort.Slice(avails, func(i, j int) bool { return avails[i].capacity > avails[j].capacity })
+
+	bestWasted := math.MaxInt32
+	bestTables := math.MaxInt32
+	var best []typeAssign
+
+	var dfs func(idx, remaining int, cur []typeAssign)
+	dfs = func(idx, remaining int, cur []typeAssign) {
+		if remaining <= 0 {
+			wasted := -remaining
+			tables := 0
+			for _, a := range cur {
+				tables += a.count
+			}
+			if wasted < bestWasted || (wasted == bestWasted && tables < bestTables) {
+				bestWasted = wasted
+				bestTables = tables
+				best = append([]typeAssign{}, cur...)
+			}
+			return
+		}
+		if idx >= len(avails) {
+			return
+		}
+		t := avails[idx]
+		maxUse := t.count
+		ceil := (remaining + t.capacity - 1) / t.capacity
+		if ceil < maxUse {
+			maxUse = ceil
+		}
+		// Try from maxUse down to 0 (larger use first for early termination).
+		for use := maxUse; use >= 0; use-- {
+			var newCur []typeAssign
+			if use > 0 {
+				newCur = append(append([]typeAssign{}, cur...), typeAssign{
+					id:       t.id,
+					name:     t.name,
+					capacity: t.capacity,
+					count:    use,
+				})
+			} else {
+				newCur = cur
+			}
+			dfs(idx+1, remaining-use*t.capacity, newCur)
+		}
+	}
+	dfs(0, guests, nil)
+
+	if best == nil {
+		return nil
+	}
+	return best
 }
 
 // generateSlots returns "HH:MM" start times from openFrom up to

@@ -39,10 +39,11 @@ type Booking struct {
 	CreatedAt    time.Time     `                                          json:"created_at"`
 	UpdatedAt   time.Time     `                                          json:"updated_at"`
 
-	Customer  *Customer  `gorm:"foreignKey:CustomerID"  json:"customer,omitempty"`
-	Branch    *Branch    `gorm:"foreignKey:BranchID"    json:"branch,omitempty"`
-	TableType *TableType `gorm:"foreignKey:TableTypeID" json:"table_type,omitempty"`
-	Room      *Room      `gorm:"foreignKey:RoomID"      json:"room,omitempty"`
+	Customer      *Customer      `gorm:"foreignKey:CustomerID"  json:"customer,omitempty"`
+	Branch        *Branch        `gorm:"foreignKey:BranchID"    json:"branch,omitempty"`
+	TableType     *TableType     `gorm:"foreignKey:TableTypeID" json:"table_type,omitempty"`
+	Room          *Room          `gorm:"foreignKey:RoomID"      json:"room,omitempty"`
+	BookingTables []BookingTable `gorm:"foreignKey:BookingID"   json:"booking_tables,omitempty"`
 }
 
 func (Booking) TableName() string { return "tabl_bookings" }
