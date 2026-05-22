@@ -212,7 +212,7 @@ func (s *bookingService) CheckAvailability(branchID uint, dateStr, startTime str
 		if !tt.IsActive {
 			continue
 		}
-		key := tableGroupKey(tt.Name, tt.Capacity, tt.RoomID)
+		key := tableGroupKey(tt.Capacity, tt.RoomID)
 		if _, ok := groups[key]; !ok {
 			groups[key] = &grp{rep: tt.ID, name: tt.Name, capacity: tt.Capacity, roomID: tt.RoomID}
 			groupOrder = append(groupOrder, key)
@@ -729,7 +729,7 @@ func (s *bookingService) GetTableStatus(branchID uint, dateStr, startTime string
 		if !tt.IsActive {
 			continue
 		}
-		key := tableGroupKey(tt.Name, tt.Capacity, tt.RoomID)
+		key := tableGroupKey(tt.Capacity, tt.RoomID)
 		if _, ok := tsGroups[key]; !ok {
 			tsGroups[key] = &tsGrp{rep: tt.ID, name: tt.Name, capacity: tt.Capacity}
 			tsOrder = append(tsOrder, key)

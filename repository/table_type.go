@@ -49,7 +49,8 @@ func (r *tableTypeRepository) FindByBranchAndRoom(branchID uint, roomID *uint) (
 
 func (r *tableTypeRepository) FindByGroup(branchID uint, name string, capacity int, roomID *uint) ([]model.TableType, error) {
 	var list []model.TableType
-	q := r.db.Where("branch_id = ? AND name = ? AND capacity = ? AND deleted_at IS NULL", branchID, name, capacity)
+	// Group by capacity + room only; name is cosmetic.
+	q := r.db.Where("branch_id = ? AND capacity = ? AND deleted_at IS NULL", branchID, capacity)
 	if roomID == nil {
 		q = q.Where("room_id IS NULL")
 	} else {

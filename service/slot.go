@@ -57,11 +57,14 @@ type tableGroup struct {
 	ids            []uint // all physical table IDs in the group
 }
 
-func tableGroupKey(name string, capacity int, roomID *uint) string {
+// tableGroupKey groups physical tables by capacity + room only.
+// Name is cosmetic — two tables of the same capacity in the same room
+// are interchangeable regardless of their individual names.
+func tableGroupKey(capacity int, roomID *uint) string {
 	if roomID == nil {
-		return fmt.Sprintf("%s|%d|", name, capacity)
+		return fmt.Sprintf("%d|", capacity)
 	}
-	return fmt.Sprintf("%s|%d|%d", name, capacity, *roomID)
+	return fmt.Sprintf("%d|%d", capacity, *roomID)
 }
 
 func (s *slotService) GetSlots(branchID uint, dateStr string, guests int, roomID *uint) ([]SlotResult, error) {
@@ -114,7 +117,7 @@ func (s *slotService) GetSlots(branchID uint, dateStr string, guests int, roomID
 		if !tt.IsActive {
 			continue
 		}
-		key := tableGroupKey(tt.Name, tt.Capacity, tt.RoomID)
+		key := tableGroupKey(tt.Capacity, tt.RoomID)
 		if _, ok := groups[key]; !ok {
 			groups[key] = &tableGroup{
 				representative: tt.ID,
