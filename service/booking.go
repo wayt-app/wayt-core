@@ -81,12 +81,13 @@ type CustomerSummary struct {
 	Segment     string    `json:"segment"` // "new", "regular", "loyal"
 }
 
-type RoomChangeOption struct {
-	RoomID         *uint  `json:"room_id"`
-	RoomName       string `json:"room_name"`
-	CanAccommodate bool   `json:"can_accommodate"`
-	TablesCount    int    `json:"tables_count"`
-	TablesSummary  string `json:"tables_summary"` // e.g. "2x Standar (4 org)"
+type TableOption struct {
+	TableTypeID uint   `json:"table_type_id"`
+	Name        string `json:"name"`
+	Capacity    int    `json:"capacity"`
+	RoomID      *uint  `json:"room_id,omitempty"`
+	RoomName    string `json:"room_name,omitempty"`
+	IsAvailable bool   `json:"is_available"`
 }
 
 type BookingService interface {
@@ -117,10 +118,10 @@ type BookingService interface {
 	AdminUpdate(id uint, dateStr, startTime, notes string, guestCount int) (*model.Booking, error)
 	// AdminChangeTableType reassigns the table type for an active booking (single-type).
 	AdminChangeTableType(bookingID, tableTypeID uint) (*model.Booking, error)
-	// GetTableChangeOptions returns rooms with optimal table assignment availability for a booking's slot.
-	GetTableChangeOptions(bookingID uint) ([]RoomChangeOption, error)
-	// AdminChangeRoom re-assigns a booking to a different room using optimal multi-type assignment.
-	AdminChangeRoom(bookingID uint, roomID *uint) (*model.Booking, error)
+	// GetTableChangeOptions returns all individual tables for a booking's branch with availability at the booking's slot.
+	GetTableChangeOptions(bookingID uint) ([]TableOption, error)
+	// AdminChangeTables manually reassigns a booking to the given set of table type IDs.
+	AdminChangeTables(bookingID uint, tableTypeIDs []uint) (*model.Booking, error)
 	// MyBookingsPaged returns a paginated list of a customer's bookings.
 	MyBookingsPaged(customerID uint, sortBy, sortDir string, page, limit int) (*BookingPage, error)
 	// ProcessReminders sends H-1 reminder notifications for tomorrow's bookings.
@@ -797,7 +798,7 @@ func (s *bookingService) AdminChangeTableType(bookingID, tableTypeID uint) (*mod
 	return s.repo.FindByID(bookingID)
 }
 
-func (s *bookingService) GetTableChangeOptions(bookingID uint) ([]RoomChangeOption, error) {
+func (s *bookingService) GetTableChangeOptions(bookingID uint) ([]TableOption, error) {
 	b, err := s.repo.FindByID(bookingID)
 	if err != nil {
 		return nil, errors.New("booking tidak ditemukan")
@@ -813,68 +814,38 @@ func (s *bookingService) GetTableChangeOptions(bookingID uint) ([]RoomChangeOpti
 		return nil, err
 	}
 
-	// Group by room_id; 0 key = no room
-	type roomGroup struct {
-		roomID   *uint
-		roomName string
-		types    []model.TableType
+	var activeIDs []uint
+	for _, tt := range allTypes {
+		if tt.IsActive {
+			activeIDs = append(activeIDs, tt.ID)
+		}
 	}
-	roomMap := map[uint]*roomGroup{}
-	var roomOrder []uint
+	bookedMap, _ := s.bookingTableRepo.SumByTypeIDsAndSlot(activeIDs, b.BookingDate, b.StartTime, endTime, bookingID)
 
+	var result []TableOption
 	for _, tt := range allTypes {
 		if !tt.IsActive {
 			continue
 		}
-		var key uint
-		if tt.RoomID != nil {
-			key = *tt.RoomID
+		opt := TableOption{
+			TableTypeID: tt.ID,
+			Name:        tt.Name,
+			Capacity:    tt.Capacity,
+			RoomID:      tt.RoomID,
+			IsAvailable: bookedMap[tt.ID] == 0,
 		}
-		if _, ok := roomMap[key]; !ok {
-			rg := &roomGroup{roomID: tt.RoomID, roomName: "Tanpa Ruangan"}
-			if tt.Room != nil {
-				rg.roomName = tt.Room.Name
-			}
-			roomMap[key] = rg
-			roomOrder = append(roomOrder, key)
-		}
-		roomMap[key].types = append(roomMap[key].types, tt)
-	}
-
-	var result []RoomChangeOption
-	for _, key := range roomOrder {
-		rg := roomMap[key]
-		allIDs := make([]uint, len(rg.types))
-		for i, t := range rg.types {
-			allIDs[i] = t.ID
-		}
-		bookedMap, _ := s.bookingTableRepo.SumByTypeIDsAndSlot(allIDs, b.BookingDate, b.StartTime, endTime, bookingID)
-
-		var avails []typeAvail
-		for _, tt := range rg.types {
-			free := 1 - int(bookedMap[tt.ID])
-			if free > 0 {
-				avails = append(avails, typeAvail{id: tt.ID, name: tt.Name, capacity: tt.Capacity, count: free})
-			}
-		}
-
-		assign := computeOptimalAssignment(b.GuestCount, avails)
-		opt := RoomChangeOption{RoomID: rg.roomID, RoomName: rg.roomName}
-		if assign != nil {
-			opt.CanAccommodate = true
-			var parts []string
-			for _, a := range assign {
-				opt.TablesCount += a.count
-				parts = append(parts, fmt.Sprintf("%dx %s (%d org)", a.count, a.name, a.capacity))
-			}
-			opt.TablesSummary = strings.Join(parts, " + ")
+		if tt.Room != nil {
+			opt.RoomName = tt.Room.Name
 		}
 		result = append(result, opt)
 	}
 	return result, nil
 }
 
-func (s *bookingService) AdminChangeRoom(bookingID uint, roomID *uint) (*model.Booking, error) {
+func (s *bookingService) AdminChangeTables(bookingID uint, tableTypeIDs []uint) (*model.Booking, error) {
+	if len(tableTypeIDs) == 0 {
+		return nil, errors.New("pilih minimal 1 meja")
+	}
 	b, err := s.repo.FindByID(bookingID)
 	if err != nil {
 		return nil, errors.New("booking tidak ditemukan")
@@ -889,54 +860,37 @@ func (s *bookingService) AdminChangeRoom(bookingID uint, roomID *uint) (*model.B
 	}
 	endTime := addMinutes(b.StartTime, branch.DefaultDurationMinutes)
 
-	allTypes, err := s.tableTypeRepo.FindByBranchWithRoom(b.BranchID)
-	if err != nil {
-		return nil, err
-	}
+	bookedMap, _ := s.bookingTableRepo.SumByTypeIDsAndSlot(tableTypeIDs, b.BookingDate, b.StartTime, endTime, bookingID)
 
-	var targetTables []model.TableType
-	for _, tt := range allTypes {
+	var anchorID uint
+	var anchorRoomID *uint
+	for i, id := range tableTypeIDs {
+		tt, err := s.tableTypeRepo.FindByID(id)
+		if err != nil {
+			return nil, fmt.Errorf("meja ID %d tidak ditemukan", id)
+		}
+		if tt.BranchID != b.BranchID {
+			return nil, errors.New("meja tidak tersedia di cabang ini")
+		}
 		if !tt.IsActive {
-			continue
+			return nil, fmt.Errorf("meja '%s' tidak aktif", tt.Name)
 		}
-		if roomID == nil && tt.RoomID == nil {
-			targetTables = append(targetTables, tt)
-		} else if roomID != nil && tt.RoomID != nil && *tt.RoomID == *roomID {
-			targetTables = append(targetTables, tt)
+		if bookedMap[id] > 0 {
+			return nil, fmt.Errorf("meja '%s' sudah dipesan di jam ini", tt.Name)
 		}
-	}
-	if len(targetTables) == 0 {
-		return nil, errors.New("tidak ada meja tersedia di ruangan ini")
-	}
-
-	allIDs := make([]uint, len(targetTables))
-	for i, t := range targetTables {
-		allIDs[i] = t.ID
-	}
-	bookedMap, _ := s.bookingTableRepo.SumByTypeIDsAndSlot(allIDs, b.BookingDate, b.StartTime, endTime, bookingID)
-
-	var avails []typeAvail
-	for _, tt := range targetTables {
-		free := 1 - int(bookedMap[tt.ID])
-		if free > 0 {
-			avails = append(avails, typeAvail{id: tt.ID, name: tt.Name, capacity: tt.Capacity, count: free})
+		if i == 0 {
+			anchorID = id
+			anchorRoomID = tt.RoomID
 		}
 	}
+	_ = branch // endTime already computed
 
-	assign := computeOptimalAssignment(b.GuestCount, avails)
-	if assign == nil {
-		return nil, errors.New("meja tidak cukup tersedia di ruangan ini untuk jumlah tamu")
+	bookingTables := make([]model.BookingTable, len(tableTypeIDs))
+	for i, id := range tableTypeIDs {
+		bookingTables[i] = model.BookingTable{BookingID: bookingID, TableTypeID: id, Count: 1}
 	}
 
-	anchorID := assign[0].id
-	totalTables := 0
-	var bookingTables []model.BookingTable
-	for _, a := range assign {
-		totalTables += a.count
-		bookingTables = append(bookingTables, model.BookingTable{BookingID: bookingID, TableTypeID: a.id, Count: a.count})
-	}
-
-	if err := s.repo.UpdateTableTypeWithCount(bookingID, anchorID, totalTables, roomID); err != nil {
+	if err := s.repo.UpdateTableTypeWithCount(bookingID, anchorID, len(tableTypeIDs), anchorRoomID); err != nil {
 		return nil, err
 	}
 	_ = s.bookingTableRepo.DeleteByBooking(bookingID)
