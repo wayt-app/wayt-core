@@ -1616,14 +1616,16 @@ func (s *bookingService) sendReminderNotif(b *model.Booking) {
 
 // --- helpers ---
 
-// checkMinBookingHours returns an error if startTime is within branch.MinBookingHours from now (today only).
+// checkMinBookingHours returns an error if the booking slot is within minHours from now.
 func checkMinBookingHours(date time.Time, startTime string, minHours int) error {
-	if minHours <= 0 || !date.Equal(today()) {
+	if minHours <= 0 {
 		return nil
 	}
-	nowMins := timeToMinutes(nowWIB().Format("15:04"))
-	startMins := timeToMinutes(startTime)
-	if startMins <= nowMins+minHours*60 {
+	now := nowWIB()
+	h, m := 0, 0
+	fmt.Sscanf(startTime, "%d:%d", &h, &m)
+	slotTime := time.Date(date.Year(), date.Month(), date.Day(), h, m, 0, 0, now.Location())
+	if !slotTime.After(now.Add(time.Duration(minHours) * time.Hour)) {
 		return fmt.Errorf("reservasi minimal %d jam dari sekarang", minHours)
 	}
 	return nil

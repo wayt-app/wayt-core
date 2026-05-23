@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"time"
 
 	"github.com/wayt-app/wayt-core/model"
 	"github.com/wayt-app/wayt-core/repository"
@@ -162,21 +163,31 @@ func (s *slotService) GetSlots(branchID uint, dateStr string, guests int, roomID
 		}
 	}
 
-	isToday := date.Equal(today())
-	cutoffMins := -1 // minutes-since-midnight cutoff for today; -1 = no cutoff
-	if isToday {
-		nowMins := timeToMinutes(nowWIB().Format("15:04"))
-		cutoffMins = nowMins
-		if branch.MinBookingHours > 0 {
-			cutoffMins = nowMins + branch.MinBookingHours*60
+	// Compute the earliest allowed slot time across any date.
+	// earliestAllowed = now + minBookingHours; slots before this are hidden.
+	now := nowWIB()
+	var earliestAllowed *time.Time
+	if branch.MinBookingHours > 0 {
+		t := now.Add(time.Duration(branch.MinBookingHours) * time.Hour)
+		earliestAllowed = &t
+	} else {
+		// Still hide past slots for today even without minBookingHours.
+		if date.Equal(today()) {
+			t := now
+			earliestAllowed = &t
 		}
 	}
 
 	var results []SlotResult
 	for _, start := range startTimes {
 		end := addMinutes(start, duration)
-		if isToday && timeToMinutes(start) <= cutoffMins {
-			continue
+		if earliestAllowed != nil {
+			slotH, slotM := 0, 0
+			fmt.Sscanf(start, "%d:%d", &slotH, &slotM)
+			slotTime := time.Date(date.Year(), date.Month(), date.Day(), slotH, slotM, 0, 0, now.Location())
+			if !slotTime.After(*earliestAllowed) {
+				continue
+			}
 		}
 
 		// Fetch booked count per table_type_id from booking_tables for this slot.
