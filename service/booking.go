@@ -81,6 +81,19 @@ type CustomerSummary struct {
 	Segment     string    `json:"segment"` // "new", "regular", "loyal"
 }
 
+type TableChangeOption struct {
+	TableTypeID    uint   `json:"table_type_id"`
+	Name           string `json:"name"`
+	Capacity       int    `json:"capacity"`
+	RoomID         *uint  `json:"room_id,omitempty"`
+	RoomName       string `json:"room_name,omitempty"`
+	TotalTables    int    `json:"total_tables"`
+	BookedCount    int64  `json:"booked_count"`
+	Available      int64  `json:"available"`
+	TablesNeeded   int    `json:"tables_needed"`
+	CanAccommodate bool   `json:"can_accommodate"`
+}
+
 type BookingService interface {
 	CheckAvailability(branchID uint, dateStr, startTime string, guests int, roomID *uint) ([]AvailabilityResult, error)
 	Create(customerID, branchID, tableTypeID uint, dateStr, startTime string, guestCount int, notes, menuOrder, source, guestEmail string) (*model.Booking, error)
@@ -109,6 +122,8 @@ type BookingService interface {
 	AdminUpdate(id uint, dateStr, startTime, notes string, guestCount int) (*model.Booking, error)
 	// AdminChangeTableType reassigns the table type for an active booking.
 	AdminChangeTableType(bookingID, tableTypeID uint) (*model.Booking, error)
+	// GetTableChangeOptions returns available table-type groups with availability for a booking's slot.
+	GetTableChangeOptions(bookingID uint) ([]TableChangeOption, error)
 	// MyBookingsPaged returns a paginated list of a customer's bookings.
 	MyBookingsPaged(customerID uint, sortBy, sortDir string, page, limit int) (*BookingPage, error)
 	// ProcessReminders sends H-1 reminder notifications for tomorrow's bookings.
@@ -774,10 +789,86 @@ func (s *bookingService) AdminChangeTableType(bookingID, tableTypeID uint) (*mod
 	if booked+int64(tablesCount) > int64(len(grpTables2)) {
 		return nil, errors.New("tipe meja yang dipilih sudah penuh di slot ini")
 	}
-	if err := s.repo.UpdateTableType(bookingID, tableTypeID); err != nil {
+	if err := s.repo.UpdateTableTypeWithCount(bookingID, tableTypeID, tablesCount, tt.RoomID); err != nil {
 		return nil, err
 	}
+	// Rebuild booking_tables: replace old assignment with new single-type assignment
+	_ = s.bookingTableRepo.DeleteByBooking(bookingID)
+	_ = s.bookingTableRepo.CreateBatch([]model.BookingTable{
+		{BookingID: bookingID, TableTypeID: tableTypeID, Count: tablesCount},
+	})
 	return s.repo.FindByID(bookingID)
+}
+
+func (s *bookingService) GetTableChangeOptions(bookingID uint) ([]TableChangeOption, error) {
+	b, err := s.repo.FindByID(bookingID)
+	if err != nil {
+		return nil, errors.New("booking tidak ditemukan")
+	}
+	branch, err := s.branchRepo.FindByID(b.BranchID)
+	if err != nil {
+		return nil, errors.New("cabang tidak ditemukan")
+	}
+	endTime := addMinutes(b.StartTime, branch.DefaultDurationMinutes)
+
+	allTypes, err := s.tableTypeRepo.FindByBranchWithRoom(b.BranchID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Group by (capacity, room_id) — same grouping logic as FindByGroup
+	type grpKey struct {
+		Capacity int
+		RoomID   uint
+	}
+	type grpData struct {
+		ids       []uint
+		firstType model.TableType
+	}
+	groups := map[grpKey]*grpData{}
+	var order []grpKey
+
+	for _, tt := range allTypes {
+		if !tt.IsActive {
+			continue
+		}
+		var rid uint
+		if tt.RoomID != nil {
+			rid = *tt.RoomID
+		}
+		key := grpKey{Capacity: tt.Capacity, RoomID: rid}
+		if _, ok := groups[key]; !ok {
+			groups[key] = &grpData{firstType: tt}
+			order = append(order, key)
+		}
+		groups[key].ids = append(groups[key].ids, tt.ID)
+	}
+
+	var result []TableChangeOption
+	for _, key := range order {
+		grp := groups[key]
+		booked, _ := s.repo.CountOverlappingByGroup(grp.ids, b.BookingDate, b.StartTime, endTime, bookingID)
+		total := len(grp.ids)
+		available := int64(total) - booked
+		tablesNeeded := (b.GuestCount + grp.firstType.Capacity - 1) / grp.firstType.Capacity
+
+		opt := TableChangeOption{
+			TableTypeID:    grp.firstType.ID,
+			Name:           grp.firstType.Name,
+			Capacity:       grp.firstType.Capacity,
+			RoomID:         grp.firstType.RoomID,
+			TotalTables:    total,
+			BookedCount:    booked,
+			Available:      available,
+			TablesNeeded:   tablesNeeded,
+			CanAccommodate: available >= int64(tablesNeeded),
+		}
+		if grp.firstType.Room != nil {
+			opt.RoomName = grp.firstType.Room.Name
+		}
+		result = append(result, opt)
+	}
+	return result, nil
 }
 
 // ProcessNoShows marks confirmed bookings as no_show if they started more than 15 minutes ago,

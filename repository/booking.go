@@ -17,6 +17,8 @@ type BookingRepository interface {
 	UpdateStatus(id uint, status model.BookingStatus) error
 	UpdateStatusAndReason(id uint, status model.BookingStatus, reason string) error
 	UpdateTableType(id uint, tableTypeID uint) error
+	// UpdateTableTypeWithCount atomically updates table_type_id, tables_count, and room_id.
+	UpdateTableTypeWithCount(id, tableTypeID uint, tablesCount int, roomID *uint) error
 	FindWaitingListForSlot(branchID uint, date time.Time, startTime, endTime string) ([]model.Booking, error)
 	CountWaitingListBefore(bookingID uint, branchID uint, date time.Time, startTime string) (int64, error)
 	// FindNoShowCandidates returns confirmed bookings whose start_time is more than `graceMinutes` ago.
@@ -223,6 +225,15 @@ func (r *bookingRepository) ListCustomerSummaryByRestaurant(restaurantID uint) (
 func (r *bookingRepository) UpdateTableType(id uint, tableTypeID uint) error {
 	return r.db.Model(&model.Booking{}).Where("id = ?", id).
 		Update("table_type_id", tableTypeID).Error
+}
+
+func (r *bookingRepository) UpdateTableTypeWithCount(id, tableTypeID uint, tablesCount int, roomID *uint) error {
+	updates := map[string]any{
+		"table_type_id": tableTypeID,
+		"tables_count":  tablesCount,
+		"room_id":       roomID,
+	}
+	return r.db.Model(&model.Booking{}).Where("id = ?", id).Updates(updates).Error
 }
 
 // FindWaitingListForSlot returns waiting_list bookings for a branch that overlap the given slot,
