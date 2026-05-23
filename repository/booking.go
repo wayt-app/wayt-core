@@ -83,6 +83,7 @@ func (r *bookingRepository) Create(b *model.Booking) error {
 func (r *bookingRepository) FindByID(id uint) (*model.Booking, error) {
 	var b model.Booking
 	err := r.db.Preload("Customer").Preload("Branch").Preload("TableType").Preload("TableType.Room").
+		Preload("BookingTables").Preload("BookingTables.TableType").Preload("BookingTables.TableType.Room").
 		Where("id = ?", id).First(&b).Error
 	return &b, err
 }
@@ -90,6 +91,7 @@ func (r *bookingRepository) FindByID(id uint) (*model.Booking, error) {
 func (r *bookingRepository) FindByCustomer(customerID uint) ([]model.Booking, error) {
 	var list []model.Booking
 	err := r.db.Preload("Branch").Preload("TableType").Preload("TableType.Room").
+		Preload("BookingTables").Preload("BookingTables.TableType").Preload("BookingTables.TableType.Room").
 		Where("customer_id = ?", customerID).
 		Order("booking_date DESC, start_time DESC").
 		Limit(100).Find(&list).Error
@@ -111,6 +113,7 @@ func (r *bookingRepository) FindActiveByBranchDate(branchID uint, date time.Time
 func (r *bookingRepository) FindByBranch(branchID uint, date *time.Time, status *model.BookingStatus) ([]model.Booking, error) {
 	var list []model.Booking
 	q := r.db.Preload("Customer").Preload("Branch").Preload("TableType").Preload("TableType.Room").
+		Preload("BookingTables").Preload("BookingTables.TableType").Preload("BookingTables.TableType.Room").
 		Where("branch_id = ?", branchID)
 	if date != nil {
 		q = q.Where("booking_date = ?", date.Format("2006-01-02"))
@@ -421,6 +424,7 @@ func (r *bookingRepository) FindByCustomerPaged(customerID uint, sortBy, sortDir
 		ids[i] = rw.ID
 	}
 	if err := r.db.Preload("Branch").Preload("Branch.Restaurant").Preload("TableType").Preload("TableType.Room").
+		Preload("BookingTables").Preload("BookingTables.TableType").Preload("BookingTables.TableType.Room").
 		Where("id IN ?", ids).Order(order).Find(&list).Error; err != nil {
 		return nil, 0, err
 	}
@@ -451,7 +455,8 @@ func (r *bookingRepository) FindByBranchPaged(branchID uint, date *time.Time, st
 		return nil, 0, err
 	}
 
-	q := r.db.Preload("Customer").Preload("Branch").Preload("TableType").Preload("TableType.Room")
+	q := r.db.Preload("Customer").Preload("Branch").Preload("TableType").Preload("TableType.Room").
+		Preload("BookingTables").Preload("BookingTables.TableType").Preload("BookingTables.TableType.Room")
 	q = applyFilters(q)
 	err := q.Order(bookingOrderClause(sortBy, sortDir, "tabl_bookings.")).
 		Offset(offset).Limit(limit).Find(&list).Error
