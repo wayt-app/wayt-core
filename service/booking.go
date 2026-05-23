@@ -1388,19 +1388,44 @@ func (s *bookingService) Reschedule(bookingID, customerID uint, dateStr, startTi
 	}
 	endTime := addMinutes(startTime, branch.DefaultDurationMinutes)
 
-	tt, err := s.tableTypeRepo.FindByID(b.TableTypeID)
-	if err != nil {
-		return nil, errors.New("tipe meja tidak ditemukan")
-	}
-	if !tt.IsActive {
-		return nil, errors.New("tipe meja tidak lagi aktif, silakan hubungi restoran untuk bantuan lebih lanjut")
-	}
-	rGrpTables, _ := s.tableTypeRepo.FindByGroup(tt.BranchID, tt.Name, tt.Capacity, tt.RoomID)
-	rGrpIDs := make([]uint, len(rGrpTables))
-	for i, t := range rGrpTables { rGrpIDs[i] = t.ID }
-	rBooked, _ := s.repo.CountOverlappingByGroup(rGrpIDs, newDate, startTime, endTime, bookingID)
-	if rBooked+int64(b.TablesCount) > int64(len(rGrpTables)) {
-		return nil, errors.New("slot baru tidak tersedia, silakan pilih waktu lain")
+	if len(b.BookingTables) > 0 {
+		// Multi-table booking: check each assigned table type independently.
+		for _, bt := range b.BookingTables {
+			btt, err := s.tableTypeRepo.FindByID(bt.TableTypeID)
+			if err != nil {
+				return nil, errors.New("tipe meja tidak ditemukan")
+			}
+			if !btt.IsActive {
+				return nil, errors.New("tipe meja tidak lagi aktif, silakan hubungi restoran untuk bantuan lebih lanjut")
+			}
+			grpTables, _ := s.tableTypeRepo.FindByGroup(btt.BranchID, btt.Name, btt.Capacity, btt.RoomID)
+			grpIDs := make([]uint, len(grpTables))
+			for i, t := range grpTables {
+				grpIDs[i] = t.ID
+			}
+			grpBooked, _ := s.repo.CountOverlappingByGroup(grpIDs, newDate, startTime, endTime, bookingID)
+			if grpBooked+int64(bt.Count) > int64(len(grpTables)) {
+				return nil, errors.New("slot baru tidak tersedia, silakan pilih waktu lain")
+			}
+		}
+	} else {
+		// Single table type booking: check anchor group.
+		tt, err := s.tableTypeRepo.FindByID(b.TableTypeID)
+		if err != nil {
+			return nil, errors.New("tipe meja tidak ditemukan")
+		}
+		if !tt.IsActive {
+			return nil, errors.New("tipe meja tidak lagi aktif, silakan hubungi restoran untuk bantuan lebih lanjut")
+		}
+		rGrpTables, _ := s.tableTypeRepo.FindByGroup(tt.BranchID, tt.Name, tt.Capacity, tt.RoomID)
+		rGrpIDs := make([]uint, len(rGrpTables))
+		for i, t := range rGrpTables {
+			rGrpIDs[i] = t.ID
+		}
+		rBooked, _ := s.repo.CountOverlappingByGroup(rGrpIDs, newDate, startTime, endTime, bookingID)
+		if rBooked+int64(b.TablesCount) > int64(len(rGrpTables)) {
+			return nil, errors.New("slot baru tidak tersedia, silakan pilih waktu lain")
+		}
 	}
 
 	if err := s.repo.UpdateSchedule(bookingID, newDate, startTime, endTime, model.BookingStatusPending); err != nil {
