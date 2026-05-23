@@ -1358,8 +1358,8 @@ func (s *bookingService) Reschedule(bookingID, customerID uint, dateStr, startTi
 	if b.CustomerID != customerID {
 		return nil, errors.New("tidak diizinkan mengubah booking ini")
 	}
-	if b.Status != model.BookingStatusPending && b.Status != model.BookingStatusConfirmed {
-		return nil, errors.New("hanya booking dengan status pending atau confirmed yang dapat diubah jadwalnya")
+	if b.Status != model.BookingStatusPending {
+		return nil, errors.New("hanya booking dengan status pending yang dapat diubah jadwalnya")
 	}
 
 	// H-1: booking date must be at least tomorrow
