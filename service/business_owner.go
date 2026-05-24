@@ -42,6 +42,7 @@ type BusinessOwnerService interface {
 	GetGoogleOAuthURL(state string) string
 	ExchangeGoogleCode(code string) (googleID, email, name, avatarURL string, err error)
 	InviteOwner(name, email, phone string) (*model.BusinessOwner, error)
+	IssueToken(ownerID uint) (string, error)
 }
 
 type businessOwnerService struct {
@@ -170,6 +171,33 @@ func (s *businessOwnerService) Login(emailAddr, password string) (string, error)
 		restaurantID = rest.ID
 	}
 
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":           owner.ID,
+		"name":          owner.Name,
+		"email":         owner.Email,
+		"type":          "owner",
+		"restaurant_id": restaurantID,
+		"token_version": owner.TokenVersion,
+		"exp":           time.Now().Add(24 * time.Hour).Unix(),
+	})
+	signed, err := token.SignedString(s.jwtSecret)
+	if err != nil {
+		return "", errors.New("gagal membuat token")
+	}
+	return signed, nil
+}
+
+// IssueToken issues a fresh JWT for an owner — useful after restaurant is created
+// so the token carries the correct restaurant_id without requiring re-login.
+func (s *businessOwnerService) IssueToken(ownerID uint) (string, error) {
+	owner, err := s.repo.FindByID(ownerID)
+	if err != nil {
+		return "", errors.New("owner tidak ditemukan")
+	}
+	var restaurantID uint
+	if rest, restErr := s.restaurantRepo.FindByOwnerID(ownerID); restErr == nil {
+		restaurantID = rest.ID
+	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":           owner.ID,
 		"name":          owner.Name,
