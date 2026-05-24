@@ -1,0 +1,1 @@
+ALTER TABLE tabl_customers ADD COLUMN IF NOT EXISTS address TEXT;
