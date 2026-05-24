@@ -771,16 +771,11 @@ func (s *bookingService) AdminChangeTableType(bookingID, tableTypeID uint) (*mod
 		return nil, errors.New("tipe meja tidak aktif")
 	}
 	tablesCount := (b.GuestCount + tt.Capacity - 1) / tt.Capacity
-	branch, err := s.branchRepo.FindByID(b.BranchID)
-	if err != nil {
-		return nil, errors.New("cabang tidak ditemukan")
-	}
-	endTime := addMinutes(b.StartTime, branch.DefaultDurationMinutes)
 	grpTables2, _ := s.tableTypeRepo.FindByGroup(tt.BranchID, tt.Name, tt.Capacity, tt.RoomID)
 	grpIDs2 := make([]uint, len(grpTables2))
 	for i, t := range grpTables2 { grpIDs2[i] = t.ID }
 	if tablesCount > len(grpTables2) { tablesCount = len(grpTables2) }
-	booked, err := s.repo.CountOverlappingByGroup(grpIDs2, b.BookingDate, b.StartTime, endTime, bookingID)
+	booked, err := s.repo.CountOverlappingByGroup(grpIDs2, b.BookingDate, b.StartTime, b.EndTime, bookingID)
 	if err != nil {
 		return nil, err
 	}
@@ -803,12 +798,6 @@ func (s *bookingService) GetTableChangeOptions(bookingID uint) ([]TableOption, e
 	if err != nil {
 		return nil, errors.New("booking tidak ditemukan")
 	}
-	branch, err := s.branchRepo.FindByID(b.BranchID)
-	if err != nil {
-		return nil, errors.New("cabang tidak ditemukan")
-	}
-	endTime := addMinutes(b.StartTime, branch.DefaultDurationMinutes)
-
 	allTypes, err := s.tableTypeRepo.FindByBranchWithRoom(b.BranchID)
 	if err != nil {
 		return nil, err
@@ -820,7 +809,7 @@ func (s *bookingService) GetTableChangeOptions(bookingID uint) ([]TableOption, e
 			activeIDs = append(activeIDs, tt.ID)
 		}
 	}
-	bookedMap, _ := s.bookingTableRepo.SumByTypeIDsAndSlot(activeIDs, b.BookingDate, b.StartTime, endTime, bookingID)
+	bookedMap, _ := s.bookingTableRepo.SumByTypeIDsAndSlot(activeIDs, b.BookingDate, b.StartTime, b.EndTime, bookingID)
 
 	var result []TableOption
 	for _, tt := range allTypes {
@@ -854,13 +843,7 @@ func (s *bookingService) AdminChangeTables(bookingID uint, tableTypeIDs []uint) 
 		b.Status != model.BookingStatusCheckedIn && b.Status != model.BookingStatusWaitingList {
 		return nil, errors.New("hanya booking yang aktif yang bisa diubah mejanya")
 	}
-	branch, err := s.branchRepo.FindByID(b.BranchID)
-	if err != nil {
-		return nil, errors.New("cabang tidak ditemukan")
-	}
-	endTime := addMinutes(b.StartTime, branch.DefaultDurationMinutes)
-
-	bookedMap, _ := s.bookingTableRepo.SumByTypeIDsAndSlot(tableTypeIDs, b.BookingDate, b.StartTime, endTime, bookingID)
+	bookedMap, _ := s.bookingTableRepo.SumByTypeIDsAndSlot(tableTypeIDs, b.BookingDate, b.StartTime, b.EndTime, bookingID)
 
 	var anchorID uint
 	var anchorRoomID *uint
@@ -883,8 +866,6 @@ func (s *bookingService) AdminChangeTables(bookingID uint, tableTypeIDs []uint) 
 			anchorRoomID = tt.RoomID
 		}
 	}
-	_ = branch // endTime already computed
-
 	bookingTables := make([]model.BookingTable, len(tableTypeIDs))
 	for i, id := range tableTypeIDs {
 		bookingTables[i] = model.BookingTable{BookingID: bookingID, TableTypeID: id, Count: 1}
@@ -1803,9 +1784,11 @@ func validateTime(t string) error {
 	return nil
 }
 
-// addMinutes adds minutes to a "HH:MM" string and returns "HH:MM".
+// addMinutes adds minutes to a time string ("HH:MM" or "HH:MM:SS") and returns "HH:MM".
 func addMinutes(t string, minutes int) string {
+	if len(t) > 5 {
+		t = t[:5] // normalize "HH:MM:SS" → "HH:MM"
+	}
 	base, _ := time.Parse("15:04", t)
-	result := base.Add(time.Duration(minutes) * time.Minute)
-	return result.Format("15:04")
+	return base.Add(time.Duration(minutes) * time.Minute).Format("15:04")
 }
