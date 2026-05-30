@@ -11,6 +11,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const adminTokenExpiry = 8 * time.Hour
+
 type AuthService interface {
 	Login(username, password string) (string, error)
 	SeedSuperAdmin(username, password string) error
@@ -46,7 +48,7 @@ func (s *authService) Login(username, password string) (string, error) {
 		"username":      user.Username,
 		"role":          string(user.Role),
 		"token_version": user.TokenVersion,
-		"exp":           time.Now().Add(8 * time.Hour).Unix(),
+		"exp":           time.Now().Add(adminTokenExpiry).Unix(),
 	}
 	if user.RestaurantID != nil {
 		claims["restaurant_id"] = *user.RestaurantID

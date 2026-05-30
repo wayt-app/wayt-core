@@ -181,7 +181,7 @@ func (s *emailCampaignService) sendCampaign(c *model.EmailCampaign) {
 		}
 		wrapped := wrapEmailHTML(c.Body, emailCfg, r.Name, restName, restLogoURL)
 		if err := s.emailSender.Send(r.Email, c.Subject, wrapped); err != nil {
-			log.Printf("[CAMPAIGN %d] gagal kirim ke %s: %v", c.ID, r.Email, err)
+			log.Printf("[CAMPAIGN %d] gagal kirim customer_id=%d: %v", c.ID, r.CustomerID, err)
 			failCount++
 		} else {
 			successCount++

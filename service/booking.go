@@ -383,9 +383,12 @@ func (s *bookingService) Create(customerID, branchID, tableTypeID uint, dateStr,
 		return nil, err
 	}
 	// Record assignment in booking_tables (single-type)
-	_ = s.bookingTableRepo.CreateBatch([]model.BookingTable{
+	if err := s.bookingTableRepo.CreateBatch([]model.BookingTable{
 		{BookingID: b.ID, TableTypeID: tableTypeID, Count: tablesCount},
-	})
+	}); err != nil {
+		_ = s.repo.Delete(b.ID)
+		return nil, fmt.Errorf("gagal mencatat alokasi meja: %w", err)
+	}
 	go s.sendBookingNotif(b, string(status))
 	go s.sendBookingEmail(b, string(status))
 	go s.sendOwnerBookingEmail(b, string(status))
@@ -534,7 +537,10 @@ func (s *bookingService) CreateFromRoom(customerID, branchID uint, roomID *uint,
 	for i := range bookingTables {
 		bookingTables[i].BookingID = b.ID
 	}
-	_ = s.bookingTableRepo.CreateBatch(bookingTables)
+	if err := s.bookingTableRepo.CreateBatch(bookingTables); err != nil {
+		_ = s.repo.Delete(b.ID)
+		return nil, fmt.Errorf("gagal mencatat alokasi meja: %w", err)
+	}
 
 	go s.sendBookingNotif(b, string(status))
 	go s.sendBookingEmail(b, string(status))
@@ -786,10 +792,14 @@ func (s *bookingService) AdminChangeTableType(bookingID, tableTypeID uint) (*mod
 		return nil, err
 	}
 	// Rebuild booking_tables: replace old assignment with new single-type assignment
-	_ = s.bookingTableRepo.DeleteByBooking(bookingID)
-	_ = s.bookingTableRepo.CreateBatch([]model.BookingTable{
+	if err := s.bookingTableRepo.DeleteByBooking(bookingID); err != nil {
+		log.Printf("[WARN] ChangeTable booking #%d: gagal hapus booking_tables lama: %v", bookingID, err)
+	}
+	if err := s.bookingTableRepo.CreateBatch([]model.BookingTable{
 		{BookingID: bookingID, TableTypeID: tableTypeID, Count: tablesCount},
-	})
+	}); err != nil {
+		return nil, fmt.Errorf("gagal memperbarui alokasi meja: %w", err)
+	}
 	return s.repo.FindByID(bookingID)
 }
 
@@ -874,8 +884,12 @@ func (s *bookingService) AdminChangeTables(bookingID uint, tableTypeIDs []uint) 
 	if err := s.repo.UpdateTableTypeWithCount(bookingID, anchorID, len(tableTypeIDs), anchorRoomID); err != nil {
 		return nil, err
 	}
-	_ = s.bookingTableRepo.DeleteByBooking(bookingID)
-	_ = s.bookingTableRepo.CreateBatch(bookingTables)
+	if err := s.bookingTableRepo.DeleteByBooking(bookingID); err != nil {
+		log.Printf("[WARN] ChangeTableGroup booking #%d: gagal hapus booking_tables lama: %v", bookingID, err)
+	}
+	if err := s.bookingTableRepo.CreateBatch(bookingTables); err != nil {
+		return nil, fmt.Errorf("gagal memperbarui alokasi meja: %w", err)
+	}
 	return s.repo.FindByID(bookingID)
 }
 
@@ -934,12 +948,18 @@ func (s *bookingService) autoPromote(cancelled *model.Booking) error {
 			booked, _ := s.repo.CountOverlappingByGroup(grpI, cancelled.BookingDate, cancelled.StartTime, cancelled.EndTime, waiter.ID)
 			if booked+int64(needed) <= int64(len(grpT)) {
 				// Assign this table type and promote
-				_ = s.repo.UpdateTableType(waiter.ID, tt.ID)
+				if err := s.repo.UpdateTableType(waiter.ID, tt.ID); err != nil {
+					log.Printf("[WARN] autoPromote booking #%d: gagal update table type: %v", waiter.ID, err)
+					continue
+				}
 				status := model.BookingStatusConfirmed
 				if branch.RequireConfirmation {
 					status = model.BookingStatusPending
 				}
-				_ = s.repo.UpdateStatus(waiter.ID, status)
+				if err := s.repo.UpdateStatus(waiter.ID, status); err != nil {
+					log.Printf("[WARN] autoPromote booking #%d: gagal update status: %v", waiter.ID, err)
+					continue
+				}
 				waiter.TableTypeID = tt.ID
 				waiter.EndTime = cancelled.EndTime
 				go s.sendBookingNotif(&waiter, "promoted")
@@ -1113,7 +1133,7 @@ func (s *bookingService) GetDashboardStats(branchID uint, dateStr string) (*Dash
 // Errors are ignored — notifications are best-effort.
 func (s *bookingService) sendBookingNotif(b *model.Booking, event string) {
 	customer, err := s.customerRepo.FindByID(b.CustomerID)
-	if err != nil || customer.Phone == "" {
+	if err != nil || customer == nil || customer.Phone == "" {
 		return
 	}
 	branch, err := s.branchRepo.FindByID(b.BranchID)
@@ -1154,7 +1174,7 @@ func (s *bookingService) sendBookingNotif(b *model.Booking, event string) {
 	}
 
 	if err := s.waSender.Send(customer.Phone, msg); err != nil {
-		log.Printf("[WA ERROR] booking #%d ke %s: %v", b.ID, customer.Phone, err)
+		log.Printf("[WA ERROR] booking #%d customer_id=%d: %v", b.ID, b.CustomerID, err)
 	}
 }
 
@@ -1162,7 +1182,7 @@ func (s *bookingService) sendBookingNotif(b *model.Booking, event string) {
 // Errors are ignored — notifications are best-effort.
 func (s *bookingService) sendBookingEmail(b *model.Booking, event string) {
 	customer, err := s.customerRepo.FindByID(b.CustomerID)
-	if err != nil {
+	if err != nil || customer == nil {
 		return
 	}
 	recipientEmail := customer.Email
@@ -1300,7 +1320,7 @@ func (s *bookingService) sendBookingEmail(b *model.Booking, event string) {
 	}
 	wrapped := wrapEmailHTML(body, emailCfg, customer.Name, branch.Name, restLogoURL)
 	if err := s.emailSender.Send(recipientEmail, subject, wrapped); err != nil {
-		log.Printf("[EMAIL ERROR] booking #%d ke %s: %v", b.ID, recipientEmail, err)
+		log.Printf("[EMAIL ERROR] booking #%d customer_id=%d: %v", b.ID, b.CustomerID, err)
 	}
 }
 
@@ -1317,19 +1337,19 @@ func (s *bookingService) sendOwnerBookingEmail(b *model.Booking, event string) {
 	}
 
 	branch, err := s.branchRepo.FindByID(b.BranchID)
-	if err != nil {
+	if err != nil || branch == nil {
 		return
 	}
 	restaurant, err := s.restaurantRepo.FindByID(branch.RestaurantID)
-	if err != nil || restaurant.BusinessOwnerID == nil {
+	if err != nil || restaurant == nil || restaurant.BusinessOwnerID == nil {
 		return
 	}
 	owner, err := s.ownerRepo.FindByID(*restaurant.BusinessOwnerID)
-	if err != nil || owner.Email == "" {
+	if err != nil || owner == nil || owner.Email == "" {
 		return
 	}
 	customer, err := s.customerRepo.FindByID(b.CustomerID)
-	if err != nil {
+	if err != nil || customer == nil {
 		return
 	}
 
@@ -1378,7 +1398,7 @@ func (s *bookingService) sendOwnerBookingEmail(b *model.Booking, event string) {
 	}
 	wrapped := wrapEmailHTML(body, emailCfg, owner.Name, branch.Name, restLogoURL)
 	if err := s.emailSender.Send(owner.Email, subject, wrapped); err != nil {
-		log.Printf("[EMAIL ERROR] notif owner booking #%d ke %s: %v", b.ID, owner.Email, err)
+		log.Printf("[EMAIL ERROR] notif owner booking #%d owner_id=%d: %v", b.ID, owner.ID, err)
 	}
 }
 
@@ -1576,7 +1596,7 @@ func (s *bookingService) sendRescheduleNotif(b *model.Booking, oldDate time.Time
 			customer.Name, branchName, b.ID, oldDateStr, oldStartTime, newDateStr, b.StartTime, b.StartTime, b.EndTime, b.GuestCount,
 		)
 		if err := s.waSender.Send(customer.Phone, waMsg); err != nil {
-			log.Printf("[WA ERROR] reschedule booking #%d ke %s: %v", b.ID, customer.Phone, err)
+			log.Printf("[WA ERROR] reschedule booking #%d customer_id=%d: %v", b.ID, b.CustomerID, err)
 		}
 	}
 
@@ -1597,7 +1617,7 @@ func (s *bookingService) sendRescheduleNotif(b *model.Booking, oldDate time.Time
 <p>Kami akan segera mengonfirmasi jadwal baru Anda.</p>`,
 			customer.Name, branchName, b.ID, oldDateStr, oldStartTime, newDateStr, b.StartTime, b.EndTime, b.GuestCount)
 		if err := s.emailSender.Send(customer.Email, subject, body); err != nil {
-			log.Printf("[EMAIL ERROR] reschedule booking #%d ke %s: %v", b.ID, customer.Email, err)
+			log.Printf("[EMAIL ERROR] reschedule booking #%d customer_id=%d: %v", b.ID, b.CustomerID, err)
 		}
 	}
 
@@ -1685,7 +1705,9 @@ func (s *bookingService) ProcessReminders() error {
 	for _, b := range candidates {
 		b := b // capture loop variable
 		s.sendReminderNotif(&b)
-		_ = s.repo.MarkReminderSent(b.ID)
+		if err := s.repo.MarkReminderSent(b.ID); err != nil {
+			log.Printf("[WARN] ProcessReminders: gagal mark reminder sent booking #%d: %v", b.ID, err)
+		}
 	}
 	return nil
 }
@@ -1713,7 +1735,7 @@ func (s *bookingService) sendReminderNotif(b *model.Booking) {
 			customer.Name, branch.Name, dateStr, b.StartTime, b.EndTime, b.GuestCount, b.ID,
 		)
 		if err := s.waSender.Send(customer.Phone, msg); err != nil {
-			log.Printf("[WA ERROR] reminder booking #%d ke %s: %v", b.ID, customer.Phone, err)
+			log.Printf("[WA ERROR] reminder booking #%d customer_id=%d: %v", b.ID, b.CustomerID, err)
 		}
 	}
 
@@ -1733,7 +1755,7 @@ func (s *bookingService) sendReminderNotif(b *model.Booking) {
 <p>Sampai jumpa besok! 🎉</p>`,
 			customer.Name, branch.Name, dateStr, b.StartTime, b.EndTime, b.GuestCount, b.ID)
 		if err := s.emailSender.Send(customer.Email, subject, body); err != nil {
-			log.Printf("[EMAIL ERROR] reminder booking #%d ke %s: %v", b.ID, customer.Email, err)
+			log.Printf("[EMAIL ERROR] reminder booking #%d customer_id=%d: %v", b.ID, b.CustomerID, err)
 		}
 	}
 }

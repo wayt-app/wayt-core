@@ -59,6 +59,8 @@ type BookingRepository interface {
 	// CountOverlappingByGroup returns total tables_count consumed by overlapping bookings
 	// across all physical table IDs in a group.
 	CountOverlappingByGroup(tableTypeIDs []uint, date time.Time, startTime, endTime string, excludeID uint) (int64, error)
+	// Delete hard-deletes a booking by ID. Used only as compensating action on partial create failure.
+	Delete(id uint) error
 }
 
 // CustomerSummaryRow is the raw DB result used by the repository.
@@ -80,6 +82,10 @@ func NewBookingRepository(db *gorm.DB) BookingRepository {
 
 func (r *bookingRepository) Create(b *model.Booking) error {
 	return r.db.Create(b).Error
+}
+
+func (r *bookingRepository) Delete(id uint) error {
+	return r.db.Unscoped().Delete(&model.Booking{}, id).Error
 }
 
 func (r *bookingRepository) FindByID(id uint) (*model.Booking, error) {

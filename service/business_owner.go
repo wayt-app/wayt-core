@@ -19,6 +19,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const ownerTokenExpiry = 24 * time.Hour
+
 type BusinessOwnerService interface {
 	Register(name, emailAddr, phone, password string) (*model.BusinessOwner, error)
 	Login(emailAddr, password string) (string, error)
@@ -146,7 +148,7 @@ func (s *businessOwnerService) Register(name, emailAddr, phone, password string)
 <p>Link berlaku selama 24 jam. Jika Anda tidak mendaftar, abaikan email ini.</p>
 `, owner.Name, link, link, link, starterPlan.Name)
 			if err := s.emailSvc.Send(emailAddr, "Verifikasi Email — Wayt Business", html); err != nil {
-					log.Printf("[EMAIL ERROR] verifikasi owner %s: %v", emailAddr, err)
+					log.Printf("[EMAIL ERROR] verifikasi owner id=%d: %v", owner.ID, err)
 				}
 		}
 	}
@@ -178,7 +180,7 @@ func (s *businessOwnerService) Login(emailAddr, password string) (string, error)
 		"type":          "owner",
 		"restaurant_id": restaurantID,
 		"token_version": owner.TokenVersion,
-		"exp":           time.Now().Add(24 * time.Hour).Unix(),
+		"exp":           time.Now().Add(ownerTokenExpiry).Unix(),
 	})
 	signed, err := token.SignedString(s.jwtSecret)
 	if err != nil {
@@ -205,7 +207,7 @@ func (s *businessOwnerService) IssueToken(ownerID uint) (string, error) {
 		"type":          "owner",
 		"restaurant_id": restaurantID,
 		"token_version": owner.TokenVersion,
-		"exp":           time.Now().Add(24 * time.Hour).Unix(),
+		"exp":           time.Now().Add(ownerTokenExpiry).Unix(),
 	})
 	signed, err := token.SignedString(s.jwtSecret)
 	if err != nil {
@@ -261,7 +263,7 @@ func (s *businessOwnerService) ForgotPassword(emailAddr string) error {
 <p>Masukkan token ini di halaman reset password. Jika Anda tidak meminta reset password, abaikan email ini.</p>
 `, o.Name, token)
 	if err := s.emailSvc.Send(emailAddr, "Reset Password — Wayt Business", html); err != nil {
-		log.Printf("[EMAIL ERROR] reset password owner %s: %v", emailAddr, err)
+		log.Printf("[EMAIL ERROR] reset password owner id=%d: %v", o.ID, err)
 	}
 	return nil
 }
@@ -380,7 +382,7 @@ func (s *businessOwnerService) sendWarningNotif(owner *model.BusinessOwner, sub 
 <p>Pertimbangkan untuk upgrade paket agar bisa menerima lebih banyak reservasi.</p>
 `, owner.Name, current, sub.Plan.MaxReservationsPerMonth, sub.Plan.WarningThresholdPct)
 	if err := s.emailSvc.Send(owner.Email, "Peringatan Kuota Reservasi — Wayt Business", html); err != nil {
-		log.Printf("[EMAIL ERROR] peringatan kuota owner %s: %v", owner.Email, err)
+		log.Printf("[EMAIL ERROR] peringatan kuota owner id=%d: %v", owner.ID, err)
 	}
 
 	if sub.Plan.WaNotifEnabled && owner.Phone != "" {
@@ -389,7 +391,7 @@ func (s *businessOwnerService) sendWarningNotif(owner *model.BusinessOwner, sub 
 			owner.Name, current, sub.Plan.MaxReservationsPerMonth, sub.Plan.WarningThresholdPct,
 		)
 		if err := s.waSender.Send(owner.Phone, msg); err != nil {
-			log.Printf("[WA ERROR] peringatan kuota owner %s: %v", owner.Phone, err)
+			log.Printf("[WA ERROR] peringatan kuota owner id=%d: %v", owner.ID, err)
 		}
 	}
 }
@@ -588,7 +590,7 @@ func (s *businessOwnerService) LoginOrRegisterWithGoogle(googleID, emailAddr, na
 		"type":          "owner",
 		"restaurant_id": restaurantID,
 		"token_version": owner.TokenVersion,
-		"exp":           time.Now().Add(24 * time.Hour).Unix(),
+		"exp":           time.Now().Add(ownerTokenExpiry).Unix(),
 	})
 	signed, err := token.SignedString(s.jwtSecret)
 	if err != nil {
@@ -651,7 +653,7 @@ func (s *businessOwnerService) InviteOwner(name, ownerEmail, phone string) (*mod
 <p>Jika Anda tidak merasa mendaftar, abaikan email ini.</p>
 `, owner.Name, inviteToken, owner.Email)
 	if err := s.emailSvc.Send(ownerEmail, "Undangan Wayt Business — Akun Anda Siap", html); err != nil {
-		log.Printf("[EMAIL ERROR] invite owner %s: %v", ownerEmail, err)
+		log.Printf("[EMAIL ERROR] invite owner id=%d: %v", owner.ID, err)
 	}
 
 	return owner, nil

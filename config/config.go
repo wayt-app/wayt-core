@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -72,7 +73,7 @@ func Load() (*Config, error) {
 			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
 		},
 		Auth: AuthConfig{
-			JWTSecret:     getEnv("JWT_SECRET", "change-this-secret"),
+			JWTSecret:     requireEnv("JWT_SECRET"),
 			AdminUsername: getEnv("ADMIN_USERNAME", "superadmin"),
 			AdminPassword: getEnv("ADMIN_PASSWORD", ""),
 		},
@@ -110,4 +111,13 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// requireEnv returns the env var value or exits with a fatal log if not set.
+func requireEnv(key string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		log.Fatalf("FATAL: required environment variable %s is not set", key)
+	}
+	return v
 }

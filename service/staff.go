@@ -214,7 +214,7 @@ func (s *staffService) ForgotPassword(emailAddr string) error {
 <p>Masukkan token ini di halaman reset password staff. Jika Anda tidak meminta reset password, abaikan email ini.</p>
 `, st.Name, token)
 	if err := s.emailSvc.Send(emailAddr, "Reset Password Staff — Wayt Business", html); err != nil {
-		log.Printf("[EMAIL ERROR] reset password staff %s: %v", emailAddr, err)
+		log.Printf("[EMAIL ERROR] reset password staff id=%d: %v", st.ID, err)
 	}
 	return nil
 }

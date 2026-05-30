@@ -18,6 +18,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const customerTokenExpiry = 24 * time.Hour
+
 type CustomerService interface {
 	Register(name, email, phone, password string) (*model.Customer, error)
 	Login(email, password string) (string, error)
@@ -84,7 +86,7 @@ func (s *customerService) Register(name, emailAddr, phone, password string) (*mo
 <p>Link berlaku selama 24 jam. Jika Anda tidak mendaftar, abaikan email ini.</p>
 `, c.Name, link, link, link)
 			if err := s.emailSvc.Send(emailAddr, "Verifikasi Email — Wayt", html); err != nil {
-					log.Printf("[EMAIL ERROR] verifikasi customer %s: %v", emailAddr, err)
+					log.Printf("[EMAIL ERROR] verifikasi customer id=%d: %v", c.ID, err)
 				}
 		}
 	}
@@ -108,7 +110,7 @@ func (s *customerService) Login(email, password string) (string, error) {
 		"email":         c.Email,
 		"type":          "customer",
 		"token_version": c.TokenVersion,
-		"exp":           time.Now().Add(24 * time.Hour).Unix(),
+		"exp":           time.Now().Add(customerTokenExpiry).Unix(),
 	})
 	signed, err := token.SignedString(s.jwtSecret)
 	if err != nil {
@@ -195,7 +197,7 @@ func (s *customerService) ForgotPassword(emailAddr string) error {
 <p>Masukkan token ini di halaman reset password. Jika Anda tidak meminta reset password, abaikan email ini.</p>
 `, c.Name, token)
 	if err := s.emailSvc.Send(emailAddr, "Reset Password — Wayt", html); err != nil {
-		log.Printf("[EMAIL ERROR] reset password customer %s: %v", emailAddr, err)
+		log.Printf("[EMAIL ERROR] reset password customer id=%d: %v", c.ID, err)
 	}
 	return nil
 }
@@ -328,7 +330,7 @@ func (s *customerService) LoginOrRegisterWithGoogle(googleID, emailAddr, name, a
 		"email":         c.Email,
 		"type":          "customer",
 		"token_version": c.TokenVersion,
-		"exp":           time.Now().Add(24 * time.Hour).Unix(),
+		"exp":           time.Now().Add(customerTokenExpiry).Unix(),
 	})
 	signed, err := token.SignedString(s.jwtSecret)
 	if err != nil {

@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/wayt-app/wayt-core/model"
@@ -33,7 +34,9 @@ func (s *mediaService) UploadLogo(restaurantID uint, data []byte, contentType, e
 	// Delete existing logo (storage + DB)
 	existing, _ := s.repo.DeleteLogoByRestaurant(restaurantID)
 	for _, old := range existing {
-		_ = s.storage.Delete([]string{old.StoragePath})
+		if err := s.storage.Delete([]string{old.StoragePath}); err != nil {
+			log.Printf("[WARN] UploadLogo: gagal hapus logo lama restaurant_id=%d path=%s: %v", restaurantID, old.StoragePath, err)
+		}
 	}
 
 	path := fmt.Sprintf("logos/%d%s", restaurantID, ext)
@@ -51,14 +54,18 @@ func (s *mediaService) UploadLogo(restaurantID uint, data []byte, contentType, e
 	if err := s.repo.Create(m); err != nil {
 		return nil, err
 	}
-	_ = s.restaurantR.UpdateLogoURL(restaurantID, url)
+	if err := s.restaurantR.UpdateLogoURL(restaurantID, url); err != nil {
+		log.Printf("[WARN] UploadLogo: gagal update logo_url restaurant_id=%d: %v", restaurantID, err)
+	}
 	return m, nil
 }
 
 func (s *mediaService) UploadBanner(restaurantID uint, data []byte, contentType, ext string) (*model.Media, error) {
 	existing, _ := s.repo.DeleteBannerByRestaurant(restaurantID)
 	for _, old := range existing {
-		_ = s.storage.Delete([]string{old.StoragePath})
+		if err := s.storage.Delete([]string{old.StoragePath}); err != nil {
+			log.Printf("[WARN] UploadBanner: gagal hapus banner lama restaurant_id=%d path=%s: %v", restaurantID, old.StoragePath, err)
+		}
 	}
 
 	path := fmt.Sprintf("banners/%d%s", restaurantID, ext)
@@ -76,7 +83,9 @@ func (s *mediaService) UploadBanner(restaurantID uint, data []byte, contentType,
 	if err := s.repo.Create(m); err != nil {
 		return nil, err
 	}
-	_ = s.restaurantR.UpdateBannerURL(restaurantID, url)
+	if err := s.restaurantR.UpdateBannerURL(restaurantID, url); err != nil {
+		log.Printf("[WARN] UploadBanner: gagal update banner_url restaurant_id=%d: %v", restaurantID, err)
+	}
 	return m, nil
 }
 
@@ -123,15 +132,21 @@ func (s *mediaService) Delete(id, restaurantID uint) error {
 	if m.RestaurantID != restaurantID {
 		return errors.New("tidak diizinkan menghapus media ini")
 	}
-	_ = s.storage.Delete([]string{m.StoragePath})
+	if err := s.storage.Delete([]string{m.StoragePath}); err != nil {
+		log.Printf("[WARN] Delete media id=%d: gagal hapus file storage path=%s: %v", id, m.StoragePath, err)
+	}
 	if err := s.repo.DeleteByID(id); err != nil {
 		return err
 	}
 	if m.Type == "logo" {
-		_ = s.restaurantR.UpdateLogoURL(restaurantID, "")
+		if err := s.restaurantR.UpdateLogoURL(restaurantID, ""); err != nil {
+			log.Printf("[WARN] Delete media id=%d: gagal clear logo_url restaurant_id=%d: %v", id, restaurantID, err)
+		}
 	}
 	if m.Type == "banner" {
-		_ = s.restaurantR.UpdateBannerURL(restaurantID, "")
+		if err := s.restaurantR.UpdateBannerURL(restaurantID, ""); err != nil {
+			log.Printf("[WARN] Delete media id=%d: gagal clear banner_url restaurant_id=%d: %v", id, restaurantID, err)
+		}
 	}
 	return nil
 }
