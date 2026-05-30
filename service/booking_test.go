@@ -26,6 +26,14 @@ func newBookingSvc(
 	subRepo *testmock.SubscriptionRepo,
 	restaurantRepo *testmock.RestaurantRepo,
 ) service.BookingService {
+	// Ensure typed-nil pointers become empty mocks to prevent goroutine panics
+	// from background notification goroutines that call these repos.
+	if subRepo == nil {
+		subRepo = &testmock.SubscriptionRepo{}
+	}
+	if restaurantRepo == nil {
+		restaurantRepo = &testmock.RestaurantRepo{}
+	}
 	return service.NewBookingService(
 		bookingRepo,
 		branchRepo,
