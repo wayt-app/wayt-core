@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -92,7 +93,10 @@ func (s *staffService) Create(ownerID, branchID uint, name, emailAddr, password 
 	}
 	if err := s.repo.Create(st); err != nil {
 		log.Printf("staff create error (owner=%d branch=%d email=%s): %v", ownerID, branchID, emailAddr, err)
-		return nil, fmt.Errorf("staff create failed: %v", err)
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			return nil, errors.New("email sudah digunakan")
+		}
+		return nil, fmt.Errorf("gagal membuat staff")
 	}
 	return st, nil
 }
