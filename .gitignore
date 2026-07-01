@@ -1,0 +1,9 @@
+# OS
+.DS_Store
+
+# Build artifacts
+/main
+/out
+
+# Tooling
+.rtk/
