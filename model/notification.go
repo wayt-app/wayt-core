@@ -9,6 +9,7 @@ type Notification struct {
 	Title     string    `gorm:"size:200;not null"        json:"title"`
 	Message   string    `gorm:"type:text;not null"       json:"message"`
 	IsRead    bool      `gorm:"default:false"            json:"is_read"`
+	BookingID *uint     `gorm:"index"                    json:"booking_id,omitempty"` // referensi booking terkait (nullable)
 	CreatedAt time.Time `                                json:"created_at"`
 }
 

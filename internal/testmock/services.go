@@ -6,6 +6,7 @@ import "github.com/wayt-app/wayt-core/model"
 
 type NotificationSvc struct {
 	SendFn        func(userType string, userID uint, title, message string) error
+	SendRefFn     func(userType string, userID uint, title, message string, bookingID *uint) error
 	ListFn        func(userType string, userID uint) ([]model.Notification, error)
 	ListUnreadFn  func(userType string, userID uint) ([]model.Notification, error)
 	CountUnreadFn func(userType string, userID uint) (int64, error)
@@ -13,6 +14,15 @@ type NotificationSvc struct {
 }
 
 func (m *NotificationSvc) Send(userType string, userID uint, title, message string) error {
+	if m.SendFn != nil {
+		return m.SendFn(userType, userID, title, message)
+	}
+	return nil
+}
+func (m *NotificationSvc) SendRef(userType string, userID uint, title, message string, bookingID *uint) error {
+	if m.SendRefFn != nil {
+		return m.SendRefFn(userType, userID, title, message, bookingID)
+	}
 	if m.SendFn != nil {
 		return m.SendFn(userType, userID, title, message)
 	}

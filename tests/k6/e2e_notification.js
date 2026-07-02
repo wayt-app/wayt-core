@@ -140,9 +140,10 @@ export default function () {
   const cancelNotif = Array.isArray(ownerNotifs)
     ? ownerNotifs.find(n => (n.title || '').toLowerCase().includes('dibatalkan') && (n.message || '').includes('#' + bookingID))
     : null;
-  check({ ownerNotifRes, cancelNotif }, {
-    'owner notif cancel: 200':       (v) => v.ownerNotifRes.status === 200,
-    'owner notif cancel: ada notif': (v) => v.cancelNotif != null,
+  check({ ownerNotifRes, cancelNotif, bookingID }, {
+    'owner notif cancel: 200':               (v) => v.ownerNotifRes.status === 200,
+    'owner notif cancel: ada notif':         (v) => v.cancelNotif != null,
+    'owner notif cancel: booking_id benar':  (v) => v.cancelNotif != null && v.cancelNotif.booking_id === v.bookingID,
   });
   console.log(cancelNotif
     ? `✅ Owner dapat notif cancel: "${cancelNotif.title}" — ${cancelNotif.message.slice(0, 60)}`

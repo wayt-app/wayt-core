@@ -315,7 +315,7 @@ func (s *bookingService) sendInAppNotif(b *model.Booking, event string) {
 	}
 
 	// Notify customer
-	_ = s.notifSvc.Send("customer", b.CustomerID, customerTitle, customerMsg)
+	_ = s.notifSvc.SendRef("customer", b.CustomerID, customerTitle, customerMsg, &b.ID)
 
 	// Notify owner: new booking or cancellation
 	if event == string(model.BookingStatusPending) || event == string(model.BookingStatusConfirmed) || event == string(model.BookingStatusWaitingList) {
@@ -328,7 +328,7 @@ func (s *bookingService) sendInAppNotif(b *model.Booking, event string) {
 			rest, _ := s.restaurantRepo.FindByBranchID(branch.RestaurantID)
 			if rest != nil && rest.BusinessOwnerID != nil {
 				ownerMsg := fmt.Sprintf("Booking baru #%d dari %s di %s pada %s pukul %s.", b.ID, customerName, branchName, dateStr, b.StartTime)
-				_ = s.notifSvc.Send("owner", *rest.BusinessOwnerID, "Booking Baru", ownerMsg)
+				_ = s.notifSvc.SendRef("owner", *rest.BusinessOwnerID, "Booking Baru", ownerMsg, &b.ID)
 			}
 		}
 	}
@@ -342,7 +342,7 @@ func (s *bookingService) sendInAppNotif(b *model.Booking, event string) {
 			rest, _ := s.restaurantRepo.FindByBranchID(branch.RestaurantID)
 			if rest != nil && rest.BusinessOwnerID != nil {
 				ownerMsg := fmt.Sprintf("Booking #%d dari %s di %s pada %s dibatalkan.", b.ID, customerName, branchName, dateStr)
-				_ = s.notifSvc.Send("owner", *rest.BusinessOwnerID, "Booking Dibatalkan", ownerMsg)
+				_ = s.notifSvc.SendRef("owner", *rest.BusinessOwnerID, "Booking Dibatalkan", ownerMsg, &b.ID)
 			}
 		}
 	}
@@ -369,7 +369,7 @@ func (s *bookingService) sendRescheduleNotif(b *model.Booking, oldDate time.Time
 
 	// In-app notification to customer
 	if s.notifSvc != nil {
-		_ = s.notifSvc.Send("customer", b.CustomerID, "Jadwal Booking Diubah", customerMsg)
+		_ = s.notifSvc.SendRef("customer", b.CustomerID, "Jadwal Booking Diubah", customerMsg, &b.ID)
 	}
 
 	// WhatsApp to customer
@@ -408,7 +408,7 @@ func (s *bookingService) sendRescheduleNotif(b *model.Booking, oldDate time.Time
 	if s.notifSvc != nil && branch != nil {
 		rest, _ := s.restaurantRepo.FindByBranchID(branch.RestaurantID)
 		if rest != nil && rest.BusinessOwnerID != nil {
-			_ = s.notifSvc.Send("owner", *rest.BusinessOwnerID, "Jadwal Booking Diubah", ownerMsg)
+			_ = s.notifSvc.SendRef("owner", *rest.BusinessOwnerID, "Jadwal Booking Diubah", ownerMsg, &b.ID)
 		}
 	}
 
@@ -416,7 +416,7 @@ func (s *bookingService) sendRescheduleNotif(b *model.Booking, oldDate time.Time
 	if s.notifSvc != nil && s.staffRepo != nil && branch != nil {
 		staffList, _ := s.staffRepo.FindByBranchID(b.BranchID)
 		for _, st := range staffList {
-			_ = s.notifSvc.Send("staff", st.ID, "Jadwal Booking Diubah", ownerMsg)
+			_ = s.notifSvc.SendRef("staff", st.ID, "Jadwal Booking Diubah", ownerMsg, &b.ID)
 		}
 	}
 }
@@ -431,9 +431,10 @@ func (s *bookingService) sendReminderNotif(b *model.Booking) {
 
 	// In-app
 	if s.notifSvc != nil {
-		_ = s.notifSvc.Send("customer", b.CustomerID,
+		_ = s.notifSvc.SendRef("customer", b.CustomerID,
 			"Pengingat Booking Besok",
 			fmt.Sprintf("Booking #%d di %s besok (%s) pukul %s. Jangan lupa hadir ya!", b.ID, branch.Name, dateStr, b.StartTime),
+			&b.ID,
 		)
 	}
 
