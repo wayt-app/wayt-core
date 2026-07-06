@@ -37,8 +37,10 @@ func (s *branchService) Create(restaurantID uint, name, address, phone, openingH
 	if durationMinutes <= 0 {
 		durationMinutes = 120
 	}
-	if slotInterval <= 0 {
+	if slotInterval == 0 {
 		slotInterval = 30
+	} else if slotInterval < 30 {
+		return nil, errors.New("interval slot minimal 30 menit")
 	}
 	if minPayment < 0 {
 		minPayment = 0
@@ -95,6 +97,9 @@ func (s *branchService) Update(id uint, name, address, phone, openingHours, open
 	b.OpenFrom = openFrom
 	b.OpenTo = openTo
 	if slotInterval > 0 {
+		if slotInterval < 30 {
+			return nil, errors.New("interval slot minimal 30 menit")
+		}
 		b.SlotIntervalMinutes = slotInterval
 	}
 	if durationMinutes > 0 {
