@@ -11,6 +11,8 @@ import (
 
 type NotificationService interface {
 	Send(userType string, userID uint, title, message string) error
+	// SendRef adalah Send dengan referensi booking terkait (untuk deep-link notif).
+	SendRef(userType string, userID uint, title, message string, bookingID *uint) error
 	List(userType string, userID uint) ([]model.Notification, error)
 	ListUnread(userType string, userID uint) ([]model.Notification, error)
 	CountUnread(userType string, userID uint) (int64, error)
@@ -27,11 +29,16 @@ func NewNotificationService(repo repository.NotificationRepository, hub *sse.Hub
 }
 
 func (s *notificationService) Send(userType string, userID uint, title, message string) error {
+	return s.SendRef(userType, userID, title, message, nil)
+}
+
+func (s *notificationService) SendRef(userType string, userID uint, title, message string, bookingID *uint) error {
 	n := &model.Notification{
-		UserType: userType,
-		UserID:   userID,
-		Title:    title,
-		Message:  message,
+		UserType:  userType,
+		UserID:    userID,
+		Title:     title,
+		Message:   message,
+		BookingID: bookingID,
 	}
 	if err := s.repo.Create(n); err != nil {
 		return err

@@ -122,8 +122,30 @@ export default function () {
   console.log(`✅ All notifications — ${allRes.json('data') ? allRes.json('data').length : 0} total, semua is_read=true`);
   sleep(0.5);
 
-  // ── Cleanup: cancel booking ───────────────────────────────────────────────────
+  // ── Bug #2: owner harus dapat notif in-app saat customer membatalkan ─────────
+  // Clean slate notif owner (buang "Booking Baru" dari create di atas)
+  const ownerMark = put(`${BASE.owner}/api/owner/notifications/read`, {}, ownerToken);
+  check(ownerMark, { 'owner mark read: 200': (r) => r.status === 200 });
+  sleep(0.5);
+
+  // Customer membatalkan booking
   const cancelRes = del(`${BASE.customer}/api/bookings/${bookingID}`, token);
-  check(cancelRes, { 'cleanup: cancel 200': (r) => r.status === 200 });
-  console.log(`🧹 Booking #${bookingID} cancelled`);
+  check(cancelRes, { 'cancel booking: 200': (r) => r.status === 200 });
+  console.log(`🧹 Booking #${bookingID} dibatalkan oleh customer`);
+  sleep(1.5); // tunggu goroutine sendInAppNotif selesai
+
+  // Owner harus punya notifikasi "Booking Dibatalkan" untuk booking ini
+  const ownerNotifRes = get(`${BASE.owner}/api/owner/notifications?unread_only=true`, ownerToken);
+  const ownerNotifs = ownerNotifRes.json('data');
+  const cancelNotif = Array.isArray(ownerNotifs)
+    ? ownerNotifs.find(n => (n.title || '').toLowerCase().includes('dibatalkan') && (n.message || '').includes('#' + bookingID))
+    : null;
+  check({ ownerNotifRes, cancelNotif, bookingID }, {
+    'owner notif cancel: 200':               (v) => v.ownerNotifRes.status === 200,
+    'owner notif cancel: ada notif':         (v) => v.cancelNotif != null,
+    'owner notif cancel: booking_id benar':  (v) => v.cancelNotif != null && v.cancelNotif.booking_id === v.bookingID,
+  });
+  console.log(cancelNotif
+    ? `✅ Owner dapat notif cancel: "${cancelNotif.title}" — ${cancelNotif.message.slice(0, 60)}`
+    : `❌ Owner TIDAK dapat notif cancel untuk #${bookingID}`);
 }
